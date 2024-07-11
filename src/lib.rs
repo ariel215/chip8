@@ -1,3 +1,4 @@
+use rand;
 type Addr = u16;
 type Reg = u8;
 
@@ -441,10 +442,6 @@ pub fn do_instruction(memory: &mut Memory, registers: &mut Registers){
                 memory.set_row(x+count, y, sprite_row);
             }
         },
-        Instruction::RegLoad(vx) => {
-            registers.vn[vx as usize]
-             = memory.ram[registers.i]; 
-        }
         Instruction::SetChar(reg) => {
             let char_index = registers.vn[reg as usize];
             assert!(char_index < 16);
@@ -454,7 +451,45 @@ pub fn do_instruction(memory: &mut Memory, registers: &mut Registers){
             registers.i = imm as usize;
         }
         Instruction::WaitForKey(reg) => registers.key_flag = Some(reg as usize),
-        _ => todo!("{:?}", instruction)
+        Instruction::SetReg(r1, r2) => registers.vn[r1 as usize] = registers.vn[r2 as usize],
+        Instruction::OrReg(r1, r2) => registers.vn[r1 as usize] |= registers.vn[r2 as usize],
+        Instruction::AndReg(r1,r2) => registers.vn[r1 as usize] &= registers.vn[r2 as usize],
+        Instruction::XorReg(r1, r2) => registers.vn[r1 as usize] ^= registers.vn[r2 as usize],
+        Instruction::Rsh(r1) => {
+            registers.vn[15] = registers.vn[r1 as usize] & 0x0001;
+            registers.vn[r1 as usize] >>= 1;
+        },
+        Instruction::Lsh(r1) =>{
+            registers.vn[15] =registers.vn[r1 as usize] & (1<<7);
+             registers.vn[r1 as usize] <<= 1;
+        },
+        Instruction::JumpOffset(imm) => registers.pc = (registers.vn[0] as u16 + imm) as usize,
+        Instruction::Rand(reg, imm) => registers.vn[reg as usize] = rand::random::<u8>() & imm,
+        Instruction::SkipKey(reg) => if memory.keys[registers.vn[reg as usize] as usize ] {
+            registers.pc += INSTRUCTION_SIZE
+        },
+        Instruction::SkipNoKey(reg) => if !memory.keys[registers.vn[reg as usize] as usize ] {
+            registers.pc += INSTRUCTION_SIZE
+        },
+        Instruction::GetDelay(reg) => registers.vn[reg as usize] = registers.delay,
+        Instruction::SetDelay(reg) => registers.delay = registers.vn[reg as usize],
+        Instruction::SetSound(reg) => registers.sound = registers.vn[reg as usize],
+        Instruction::AddMemPtr(reg) => registers.i += registers.vn[reg as usize] as usize, 
+        Instruction::BCD(reg) => {
+            let val = registers.vn[reg as usize];
+            let ones = val % 10;
+            let tens = val % 100 - ones;
+            let hundreds = val - tens - ones;
+            memory.ram[registers.i] = hundreds;
+            memory.ram[registers.i+1] = tens;
+            memory.ram[registers.i+2] = ones; 
+        }
+        Instruction::RegDump(reg) => {
+                memory.ram[registers.i..registers.i + reg as usize].copy_from_slice(&registers.vn[0..reg as usize])
+        }
+        Instruction::RegLoad(vx) => {
+            registers.vn[0..vx as usize].copy_from_slice(&memory.ram[registers.i..registers.i + vx as usize])
+        }
     }
     if !matches!(instruction, Instruction::Jump(_) | Instruction::JumpOffset(_) | Instruction::Call(_) | Instruction::Ret){
         registers.pc += INSTRUCTION_SIZE;
