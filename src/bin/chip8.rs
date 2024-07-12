@@ -7,7 +7,9 @@ use clio::*;
 
 #[derive(Parser)]
 struct Args{
-    rom: ClioPath
+    rom: ClioPath,
+    #[arg(short, long)]
+    speed: Option<u64>
 }
 
 fn main() {
@@ -16,7 +18,7 @@ fn main() {
     let mut input = args.rom.open().expect(&format!("No file named {}", rom_name));
     let mut instructions = Vec::new();
     input.read_to_end(&mut instructions).expect(&format!("Failed to read {}", rom_name ));
-    let mut emulator = Emulator::windowed();
+    let mut emulator = Emulator::windowed(args.speed);
     emulator.load_rom(&instructions);
     emulator.run()
 }
