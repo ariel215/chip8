@@ -1,6 +1,11 @@
+use std::{thread, time::{self, Duration}};
+use raylib;
 use rand;
+
 type Addr = u16;
 type Reg = u8;
+
+pub mod graphics;
 
 
 #[derive(Debug, PartialEq, Eq)]
@@ -70,17 +75,16 @@ const DISPLAY_COLUMNS: usize = 32;
 pub struct Memory{
     /// Random access memory
     ram: [u8;4096],
-    /// Call stack
-    stack: Vec<usize>,
     /// Graphic display
     display: [bool; DISPLAY_ROWS * DISPLAY_COLUMNS],
     /// Key array
     keys: [bool; 16]
 }
 
+#[macro_export]
 macro_rules! index {
     ($row: expr, $col: expr) => {
-        ($row * DISPLAY_COLUMNS + $col) as usize
+        ($row * crate::DISPLAY_COLUMNS + $col) as usize
     };
 }
 
@@ -93,11 +97,10 @@ fn test_index (){
 
 impl Default for Memory {
     fn default() -> Self {
-        let mut mem = Self { ram: [0;4096], stack: Default::default(), display: [false ;64 * 32], keys: Default::default() };
+        let mut mem = Self { ram: [0;4096], display: [false ;64 * 32], keys: Default::default() };
         mem.ram[0..CHAR_SPRITES.len()].copy_from_slice(&CHAR_SPRITES);
         mem
     }
-
 }
 
 
@@ -166,10 +169,89 @@ pub struct Registers{
 
 impl Default for Registers {
     fn default() -> Self {
-        Self { vn: Default::default(), delay: Default::default(), sound: Default::default(), pc: 0x200, sp: Default::default(), i: Default::default(), key_flag: Default::default() }
+        Self { 
+            vn: Default::default(), 
+            delay: Default::default(), 
+            sound: Default::default(),
+            // Programs start as 0x200 and grow up
+            pc: 0x200,
+            // Call stack starts at 0x1ff and grows down 
+            sp: 0x1ff,
+            i: Default::default(), 
+            key_flag: Default::default() }
     }
 }
 
+
+
+pub struct Emulator{
+    clock_speed: u64, // Cycles per second,
+    memory: Memory,
+    registers: Registers,
+    frontend: Box<dyn graphics::Chip8Frontend>
+}
+
+
+impl Emulator{
+    pub fn windowed()->Self{
+        Self{
+            clock_speed: 500,
+            memory: Memory::default(),
+            registers: Registers::default(),
+            frontend: Box::new(graphics::RaylibDisplay::new())
+        }
+    }
+
+    pub fn clock_speed(&mut self, speed: u64) -> &mut Self{
+        self.clock_speed = speed;
+        self
+    }
+
+    pub fn load_rom(&mut self, rom: &[u8])->&mut Self {
+        self.memory.load_rom(rom);
+        self
+    }
+
+    pub fn step(&mut self) -> bool{
+        do_instruction(&mut self.memory, &mut self.registers);
+        self.frontend.update(&self.memory.display)
+    }
+
+    pub fn run(&mut self){
+        let cycle_length = Duration::from_millis(1000 / self.clock_speed);
+        let frame_length = Duration::from_millis(1000/60);
+        loop {
+            let mut frame_elapsed = Duration::ZERO;
+            while frame_elapsed < frame_length{
+                self.memory.keys = [false; 16];
+                let tic = time::Instant::now();
+                if let Some(key) = self.frontend.get_input(){
+                    self.memory.keys[key as usize] = true;
+                    self.registers.key_flag = None;
+                } else {
+                    if self.registers.key_flag.is_some(){
+                        continue;
+                    }
+                }
+                do_instruction(&mut self.memory, &mut self.registers);
+                let toc = time::Instant::now();
+                if toc - tic < cycle_length{
+                    thread::sleep(cycle_length - (toc-tic))
+                }
+                frame_elapsed += time::Instant::now() - tic;
+            }
+            if self.registers.delay > 0{
+                self.registers.delay -= 1;
+            }
+            if self.registers.sound > 0 {
+                self.registers.sound -= 1;
+            }
+            if self.frontend.update(&self.memory.display){
+                break;
+            }
+        }
+    }
+}
 
 // First register argument
 macro_rules! X {
@@ -382,11 +464,17 @@ pub fn do_instruction(memory: &mut Memory, registers: &mut Registers){
     match instruction {
         Instruction::Nop => (),
         Instruction::Jump(addr) => registers.pc = addr as usize,
-        Instruction::Call(addr) => {
-            memory.stack.push(registers.pc);
+        Instruction::Call(addr) => {            
+            memory.ram[registers.sp-1..=registers.sp].copy_from_slice(&(registers.pc as u16).to_be_bytes());
+            registers.sp -= 2;
             registers.pc = addr as usize
         }, 
-        Instruction::Ret => registers.pc = memory.stack.pop().unwrap(),
+        Instruction::Ret => {
+            registers.sp += 2;
+            let mut bytes :[u8;2] = [0,0];
+            bytes.copy_from_slice(&memory.ram[registers.sp-1..=registers.sp]);
+            registers.pc = u16::from_be_bytes(bytes) as usize;
+        }
         Instruction::SkipEqImm(reg,imm ) => {
             if registers.vn[reg as usize] == imm {
                 registers.pc += INSTRUCTION_SIZE;
@@ -497,9 +585,6 @@ pub fn do_instruction(memory: &mut Memory, registers: &mut Registers){
 }
 
 
-
-
-
 #[test]
 fn test_instructions(){
     assert_eq!(<u16 as Into<Instruction>>::into(0x00E0_u16), Instruction::ClearScreen);
@@ -543,9 +628,12 @@ fn test_call_ret() {
     let mut memory = Memory::default();
     memory.load_rom(&rom);
     let mut registers = Registers::default();
+    assert_eq!(registers.sp, 0x1ff);
     do_instruction(&mut memory, &mut registers);
     assert_eq!(registers.pc, 0x204);
+    assert_eq!(registers.sp, 0x1fd);
     do_instruction(&mut memory, &mut registers);
+    assert_eq!(registers.sp, 0x1ff);
     assert_eq!(registers.pc, 0x200)
 }
 
