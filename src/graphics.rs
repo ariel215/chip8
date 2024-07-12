@@ -58,11 +58,11 @@ impl Chip8Frontend for RaylibDisplay{
         {        
             let mut handle = self.raylib_handle.begin_drawing(&self.raylib_thread);
             handle.clear_background(Color::BLACK);
-            for row in 0..crate::DISPLAY_ROWS{
-                for col in 0..crate::DISPLAY_COLUMNS{
-                    let pixel = display[crate::index!(row,col)];
+            for y in 0..crate::DISPLAY_ROWS{
+                for x in 0..crate::DISPLAY_COLUMNS{
+                    let pixel = display[crate::index!(x, y)];
                     if pixel {
-                        handle.draw_rectangle(col as i32 * width, row as i32 * height, width, height, Color::WHITE)
+                        handle.draw_rectangle(x as i32 * width, y as i32 * height, width, height, Color::WHITE)
                     }
                 }
             }

@@ -3,6 +3,7 @@ use rand;
 
 type Addr = u16;
 type Reg = u8;
+type Display = [bool];
 
 pub mod graphics;
 pub mod errors;
@@ -189,6 +190,6 @@ const CHAR_SPRITES: [u8;16*5] = [
 ];
 
 
-const DISPLAY_ROWS: usize = 64;
-const DISPLAY_COLUMNS: usize = 32;
+const DISPLAY_COLUMNS: usize = 64;
+const DISPLAY_ROWS: usize = 32;
 

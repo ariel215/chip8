@@ -8,8 +8,8 @@ use crate::*;
 
 #[macro_export]
 macro_rules! index {
-    ($row: expr, $col: expr) => {
-        ($row * crate::DISPLAY_COLUMNS + $col) as usize
+    ($x: expr, $y: expr) => {
+        ($x + $y * crate::DISPLAY_ROWS) as usize
     };
 }
 
@@ -31,8 +31,8 @@ fn test_bytes(){
 
 #[test]
 fn test_index (){
-    assert_eq!(index!(0,2),2);
-    assert_eq!(index!(1,0),32)
+    assert_eq!(index!(2,0),2);
+    assert_eq!(index!(0,1),64);
 }
 
 
@@ -95,9 +95,9 @@ impl Default for Registers {
 /////////////////////////////
 
 impl Emulator{
-    pub fn windowed()->Self{
+    pub fn windowed(clock_speed: Option<u64>)->Self{
         Self{
-            clock_speed: 500,
+            clock_speed: clock_speed.unwrap_or(500),
             memory: Memory::default(),
             registers: Registers::default(),
             frontend: Box::new(graphics::RaylibDisplay::new())
@@ -474,8 +474,8 @@ pub fn do_instruction(memory: &mut Memory, registers: &mut Registers){
         Instruction::Draw(vx,vy ,n ) => {
             let x = registers.vn[vx as usize] as usize;
             let y = registers.vn[vy as usize] as usize;
-            assert!(x < DISPLAY_ROWS);
-            assert!(y < DISPLAY_COLUMNS);
+            assert!(x < DISPLAY_COLUMNS);
+            assert!(y < DISPLAY_ROWS);
             for count in 0..n as usize{
                 let addr = registers.i + count;
                 let sprite_row = memory.ram[addr];
