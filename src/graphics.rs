@@ -1,20 +1,21 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hash};
 
 use raylib::{self, color::Color, drawing::RaylibDraw, RaylibBuilder, RaylibHandle, RaylibThread, consts::KeyboardKey};
 pub trait Chip8Frontend{
     fn update(&mut self, display: &[bool]) -> bool;
-    fn get_input(&self)->Option<u8>;
+    fn get_input(&mut self)->Option<u8>;
 }
 
 pub struct RaylibDisplay{
     raylib_handle: RaylibHandle,
-    raylib_thread: RaylibThread
+    raylib_thread: RaylibThread,
+    keymap: HashMap<KeyboardKey,u8>
 }
 
 impl RaylibDisplay{
     const WINDOW_WIDTH: i32 = 960;
     const WINDOW_HEIGHT: i32 = 480;
-    const KEYMAP: HashMap<KeyboardKey,u8> = HashMap::from_iter([
+    const KEYMAP: [(KeyboardKey,u8); 16] = [
         (KeyboardKey::KEY_ONE, 0x1),
         (KeyboardKey::KEY_TWO, 0x2),
         (KeyboardKey::KEY_THREE, 0x3),
@@ -31,7 +32,7 @@ impl RaylibDisplay{
         (KeyboardKey::KEY_X, 0x0),
         (KeyboardKey::KEY_C, 0xb),
         (KeyboardKey::KEY_V, 0xf)
-    ].into_iter());
+    ];
     pub fn new()->Self{
         let (rhandle, rthread) = RaylibBuilder::default()
             .width(Self::WINDOW_WIDTH)
@@ -39,9 +40,13 @@ impl RaylibDisplay{
             .resizable()
             .title("Chip-8")
             .build();
+        let keymap: HashMap<KeyboardKey, u8> = HashMap::from_iter(
+            Self::KEYMAP.iter().copied()
+        );
         Self{
             raylib_handle:rhandle,
-            raylib_thread:rthread
+            raylib_thread:rthread,
+            keymap
         }
     }
 }
@@ -65,9 +70,9 @@ impl Chip8Frontend for RaylibDisplay{
         return self.raylib_handle.window_should_close()
     }
     
-    fn get_input(&self) ->Option<u8>{
+    fn get_input(&mut self) ->Option<u8>{
         self.raylib_handle.get_key_pressed().map(
-            |k| Self::KEYMAP.get(&k).copied()
+            |k| self.keymap.get(&k).copied()
         ).flatten()
     }
 }

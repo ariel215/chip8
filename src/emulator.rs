@@ -1,3 +1,5 @@
+use errors::ParseError;
+
 use crate::*;
 
 /////////////////////////////////////
@@ -323,6 +325,52 @@ impl From<u16> for Instruction {
         }
     }
 }
+
+impl Instruction{
+    pub fn from_mnemonic(mnemonic: &str) -> Result<Instruction,ParseError> {
+        let lower = mnemonic.to_ascii_lowercase();
+        let mnemonic_parts:Vec<_> = lower.split(|s:char|{s.is_whitespace()}).collect();
+        Ok(match mnemonic_parts[0]{
+            "cls" => Instruction::ClearScreen,
+            "ret" => Instruction::Ret,
+            "nop" => Instruction::Nop,
+            "jmp" => Instruction::Jump(mnemonic_parts.get(1).ok_or(())?.parse()?),
+            "call" => Instruction::Call(mnemonic_parts.get(1).ok_or(())?.parse()?),
+            "skei" => Instruction::SkipEqImm(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
+            "skni" => Instruction::SkipNeImm(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
+            "skev" => Instruction::SkipEqReg(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
+            "movi" => Instruction::SetImm(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
+            "addi" => Instruction::AddImm(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
+            "movv" => Instruction::SetReg(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
+            "or" => Instruction::OrReg(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
+            "and" => Instruction::AndReg(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
+            "xor" => Instruction::XorReg(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
+            "addv" => Instruction::AddReg(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
+            "subv" => Instruction::SubReg(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
+            "rsh" => Instruction::Rsh(mnemonic_parts.get(1).ok_or(())?.parse()?),
+            "subf" => Instruction::SubFrom(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
+            "lsh" => Instruction::Lsh(mnemonic_parts.get(1).ok_or(())?.parse()?),
+            "sknv" => Instruction::SkipNeReg(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
+            "movm" => Instruction::SetMemPtr(mnemonic_parts.get(1).ok_or(())?.parse()?),
+            "joff" => Instruction::JumpOffset(mnemonic_parts.get(1).ok_or(())?.parse()?),
+            "rnd" | "rand" => Instruction::Rand(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
+            "draw" => Instruction::Draw(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?, mnemonic_parts[3].parse()?),
+            "skk" => Instruction::SkipKey(mnemonic_parts.get(1).ok_or(())?.parse()?),
+            "snk" => Instruction::SkipNoKey(mnemonic_parts.get(1).ok_or(())?.parse()?),
+            "getd" => Instruction::GetDelay(mnemonic_parts.get(1).ok_or(())?.parse()?),
+            "wait" => Instruction::WaitForKey(mnemonic_parts.get(1).ok_or(())?.parse()?),
+            "movd" => Instruction::SetDelay(mnemonic_parts.get(1).ok_or(())?.parse()?),
+            "movs" => Instruction::SetSound(mnemonic_parts.get(1).ok_or(())?.parse()?),
+            "addm" => Instruction::AddMemPtr(mnemonic_parts.get(1).ok_or(())?.parse()?),
+            "movc" => Instruction::SetChar(mnemonic_parts.get(1).ok_or(())?.parse()?),
+            "bcd" => Instruction::BCD(mnemonic_parts.get(1).ok_or(())?.parse()?),
+            "rdump" | "rdmp" => Instruction::RegDump(mnemonic_parts.get(1).ok_or(())?.parse()?),
+            "rload" => Instruction::RegLoad(mnemonic_parts.get(1).ok_or(())?.parse()?),
+            _=> { return Err(errors::ParseError{})}
+        })
+    }
+}
+
 
 /// Get the current instruction from memory
 pub(crate) fn get_instruction(memory: &Memory, registers: &Registers) -> Instruction{
