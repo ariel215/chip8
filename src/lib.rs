@@ -1,13 +1,16 @@
 use std::{thread, time::{self, Duration}};
+use ndarray::prelude::*;
 use rand;
 
 type Addr = u16;
 type Reg = u8;
-type Display = [bool];
+type Display = Array2<bool>;
+
 
 pub mod graphics;
 pub mod errors;
-mod emulator;
+pub mod instructions;
+pub mod emulator;
 
 pub struct Emulator{
     clock_speed: u64, // Cycles per second,
@@ -103,7 +106,10 @@ pub enum Instruction{
     Rand(Reg, u8), //Set Vx to rand() & imm
     /// DRAW Vx Vy imm4
     /// 0xDXYN
-    Draw(Reg,Reg, u8), // Draw N-byte sprite at (Vx,Vy)
+    /// Draw N-byte sprite at (Vx,Vy) 
+    /// Successive bytes are drawn one below the next
+    /// Note that the chip8 display is indexed like (column, row)
+    Draw(Reg,Reg, u8), 
     /// SKK Vx
     /// 0xEX9E
     SkipKey(Reg), // Skip next instruction if the key in Vx is pressed
@@ -144,7 +150,7 @@ pub struct Memory{
     /// Random access memory
     ram: [u8;4096],
     /// Graphic display
-    display: [bool; DISPLAY_ROWS * DISPLAY_COLUMNS],
+    display: Display,
     /// Key array
     keys: [bool; 16]
 }

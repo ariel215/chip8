@@ -6,8 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-array2d = "0.3.2"
 clap = { version = "4.5.9", features = ["derive"] }
 clio = { version = "0.3.5", features = ["clap-parse"] }
+itertools = "0.13.0"
+ndarray = "0.15.6"
 rand = "0.8.5"
 raylib = "3.7.0"

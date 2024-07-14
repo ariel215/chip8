@@ -1,8 +1,10 @@
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap};
 
 use raylib::{self, color::Color, drawing::RaylibDraw, RaylibBuilder, RaylibHandle, RaylibThread, consts::KeyboardKey};
+
+use crate::Display;
 pub trait Chip8Frontend{
-    fn update(&mut self, display: &[bool]) -> bool;
+    fn update(&mut self, display: &Display) -> bool;
     fn get_input(&mut self)->Option<u8>;
 }
 
@@ -52,15 +54,15 @@ impl RaylibDisplay{
 }
 
 impl Chip8Frontend for RaylibDisplay{
-    fn update(&mut self, display: &[bool]) -> bool {
+    fn update(&mut self, display: &Display) -> bool {
         let width = self.raylib_handle.get_screen_width() / crate::DISPLAY_COLUMNS as i32;
         let height = self.raylib_handle.get_screen_height() / crate::DISPLAY_ROWS as i32;
         {        
             let mut handle = self.raylib_handle.begin_drawing(&self.raylib_thread);
             handle.clear_background(Color::BLACK);
-            for y in 0..crate::DISPLAY_ROWS{
-                for x in 0..crate::DISPLAY_COLUMNS{
-                    let pixel = display[crate::index!(x, y)];
+            for x in 0..crate::DISPLAY_COLUMNS{
+                for y in 0..crate::DISPLAY_ROWS{
+                    let pixel = display[[x,y]];
                     if pixel {
                         handle.draw_rectangle(x as i32 * width, y as i32 * height, width, height, Color::WHITE)
                     }
