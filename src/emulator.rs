@@ -326,47 +326,65 @@ impl From<u16> for Instruction {
     }
 }
 
+macro_rules! get_arg {
+    ($parts: expr, $index: expr) => {
+        {
+        let __arg_part = $parts.get($index);
+        match __arg_part {
+            Some(__arg_str) => {
+                if let Ok(__val) = __arg_str.parse() {
+                    Ok(__val)
+                } else {Err(crate::errors::ParseError::new(&$parts.join(" "), &format!("Couldn't parse value {}", __arg_str)))}
+            },
+            None => Err(crate::errors::ParseError::new(&$parts.join(" "), &format!("Missing argument {}", $index)))
+        }}
+    }
+}
+
+
+
 impl Instruction{
     pub fn from_mnemonic(mnemonic: &str) -> Result<Instruction,ParseError> {
         let lower = mnemonic.to_ascii_lowercase();
         let mnemonic_parts:Vec<_> = lower.split(|s:char|{s.is_whitespace()}).collect();
-        Ok(match mnemonic_parts[0]{
+        Ok(
+            match mnemonic_parts[0] {
             "cls" => Instruction::ClearScreen,
             "ret" => Instruction::Ret,
             "nop" => Instruction::Nop,
-            "jmp" => Instruction::Jump(mnemonic_parts.get(1).ok_or(())?.parse()?),
-            "call" => Instruction::Call(mnemonic_parts.get(1).ok_or(())?.parse()?),
-            "skei" => Instruction::SkipEqImm(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
-            "skni" => Instruction::SkipNeImm(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
-            "skev" => Instruction::SkipEqReg(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
-            "movi" => Instruction::SetImm(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
-            "addi" => Instruction::AddImm(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
-            "movv" => Instruction::SetReg(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
-            "or" => Instruction::OrReg(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
-            "and" => Instruction::AndReg(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
-            "xor" => Instruction::XorReg(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
-            "addv" => Instruction::AddReg(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
-            "subv" => Instruction::SubReg(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
-            "rsh" => Instruction::Rsh(mnemonic_parts.get(1).ok_or(())?.parse()?),
-            "subf" => Instruction::SubFrom(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
-            "lsh" => Instruction::Lsh(mnemonic_parts.get(1).ok_or(())?.parse()?),
-            "sknv" => Instruction::SkipNeReg(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
-            "movm" => Instruction::SetMemPtr(mnemonic_parts.get(1).ok_or(())?.parse()?),
-            "joff" => Instruction::JumpOffset(mnemonic_parts.get(1).ok_or(())?.parse()?),
-            "rnd" | "rand" => Instruction::Rand(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?),
-            "draw" => Instruction::Draw(mnemonic_parts.get(1).ok_or(())?.parse()?, mnemonic_parts.get(2).ok_or(())?.parse()?, mnemonic_parts[3].parse()?),
-            "skk" => Instruction::SkipKey(mnemonic_parts.get(1).ok_or(())?.parse()?),
-            "snk" => Instruction::SkipNoKey(mnemonic_parts.get(1).ok_or(())?.parse()?),
-            "getd" => Instruction::GetDelay(mnemonic_parts.get(1).ok_or(())?.parse()?),
-            "wait" => Instruction::WaitForKey(mnemonic_parts.get(1).ok_or(())?.parse()?),
-            "movd" => Instruction::SetDelay(mnemonic_parts.get(1).ok_or(())?.parse()?),
-            "movs" => Instruction::SetSound(mnemonic_parts.get(1).ok_or(())?.parse()?),
-            "addm" => Instruction::AddMemPtr(mnemonic_parts.get(1).ok_or(())?.parse()?),
-            "movc" => Instruction::SetChar(mnemonic_parts.get(1).ok_or(())?.parse()?),
-            "bcd" => Instruction::BCD(mnemonic_parts.get(1).ok_or(())?.parse()?),
-            "rdump" | "rdmp" => Instruction::RegDump(mnemonic_parts.get(1).ok_or(())?.parse()?),
-            "rload" => Instruction::RegLoad(mnemonic_parts.get(1).ok_or(())?.parse()?),
-            _=> { return Err(errors::ParseError{})}
+            "jmp" => Instruction::Jump(get_arg!(mnemonic_parts, 1)?),
+            "call" => Instruction::Call(get_arg!(mnemonic_parts, 1)?),
+            "skei" => Instruction::SkipEqImm(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
+            "skni" => Instruction::SkipNeImm(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
+            "skev" => Instruction::SkipEqReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
+            "movi" => Instruction::SetImm(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
+            "addi" => Instruction::AddImm(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
+            "movv" => Instruction::SetReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
+            "or" => Instruction::OrReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
+            "and" => Instruction::AndReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
+            "xor" => Instruction::XorReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
+            "addv" => Instruction::AddReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
+            "subv" => Instruction::SubReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
+            "rsh" => Instruction::Rsh(get_arg!(mnemonic_parts, 1)?),
+            "subf" => Instruction::SubFrom(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
+            "lsh" => Instruction::Lsh(get_arg!(mnemonic_parts, 1)?),
+            "sknv" => Instruction::SkipNeReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
+            "movm" => Instruction::SetMemPtr(get_arg!(mnemonic_parts, 1)?),
+            "joff" => Instruction::JumpOffset(get_arg!(mnemonic_parts, 1)?),
+            "rnd" | "rand" => Instruction::Rand(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
+            "draw" => Instruction::Draw(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?, get_arg!(mnemonic_parts, 3)?),
+            "skk" => Instruction::SkipKey(get_arg!(mnemonic_parts, 1)?),
+            "snk" => Instruction::SkipNoKey(get_arg!(mnemonic_parts, 1)?),
+            "getd" => Instruction::GetDelay(get_arg!(mnemonic_parts, 1)?),
+            "wait" => Instruction::WaitForKey(get_arg!(mnemonic_parts, 1)?),
+            "movd" => Instruction::SetDelay(get_arg!(mnemonic_parts, 1)?),
+            "movs" => Instruction::SetSound(get_arg!(mnemonic_parts, 1)?),
+            "addm" => Instruction::AddMemPtr(get_arg!(mnemonic_parts, 1)?),
+            "movc" => Instruction::SetChar(get_arg!(mnemonic_parts, 1)?),
+            "bcd" => Instruction::BCD(get_arg!(mnemonic_parts, 1)?),
+            "rdump" | "rdmp" => Instruction::RegDump(get_arg!(mnemonic_parts, 1)?),
+            "rload" => Instruction::RegLoad(get_arg!(mnemonic_parts, 1)?),
+            _=> { return Err(errors::ParseError::new(mnemonic, "Unknown instruction"))}
         })
     }
 }
