@@ -157,47 +157,47 @@ impl From<Instruction> for u16 {
     }
 }
 
-// impl std::fmt::Display for Instruction {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         match self {
-//             Instruction::Nop => write!(f, "NOP"),
-//             Instruction::ClearScreen => write!(f, "CLS"),
-//             Instruction::Ret => write!(f, "RET"),
-//             Instruction::Jump(v) => write!(f, "JMP {}", v),
-//             Instruction::Call(v) => write!(f, "CALL {}", v),
-//             Instruction::SkipEqImm(reg, imm) => write!()
-//             Instruction::SkipNeImm(reg, imm ) =>  0x4000 | XNN!(reg, imm),
-//             Instruction::SkipEqReg(r1, r2 ) => 0x5000 | XY!(r1, r2),
-//             Instruction::SetImm(reg, imm) => 0x6000 | XNN!(reg, imm),
-//             Instruction::AddImm(reg, imm) => 0x7000 | XNN!(reg, imm),
-//             Instruction::SetReg(r1,r2) => 0x8000 | XY!(r1, r2) | 0,
-//             Instruction::OrReg(r1,r2 ) => 0x8000 | XY!(r1, r2) | 1,
-//             Instruction::AndReg(r1,r2 ) => 0x8000 | XY!(r1, r2) | 2,
-//             Instruction::XorReg(r1,r2 ) => 0x8000 | XY!(r1, r2) | 3,
-//             Instruction::AddReg(r1,r2 ) => 0x8000 | XY!(r1, r2) | 4,
-//             Instruction::SubReg(r1,r2 ) => 0x8000 | XY!(r1, r2) | 5,
-//             Instruction::Rsh(r1 ) => 0x8000 | XY!(r1, 0) | 6,
-//             Instruction::SubFrom(r1,r2 ) => 0x8000 | XY!(r1, r2) | 7,
-//             Instruction::Lsh(r1 ) => 0x8000 | XY!(r1, 0) | 0xe,
-//             Instruction::SkipNeReg(r1,r2 )=> 0x9000 | XY!(r1, r2),
-//             Instruction::SetMemPtr(imm) => 0xA000 | imm,
-//             Instruction::JumpOffset(imm) => 0xB000 | imm,
-//             Instruction::Rand(reg,imm ) => 0xC000 | XNN!(reg, imm),
-//             Instruction::Draw(x,y ,n) => 0xD000 | XY!(x,y) | n as u16,
-//             Instruction::SkipKey(reg) => 0xE09E | XY!(reg,0),
-//             Instruction::SkipNoKey(reg) => 0xE0A1 | XY!(reg,0),
-//             Instruction::GetDelay(reg) => 0xF007 | XY!(reg,0),
-//             Instruction::WaitForKey(reg) => 0xF009 | XY!(reg,0),
-//             Instruction::SetDelay(reg) => 0xF015 | XY!(reg,0),
-//             Instruction::SetSound(reg) => 0xF018 | XY!(reg,0),
-//             Instruction::AddMemPtr(reg) => 0xF01E | XY!(reg,0),
-//             Instruction::SetChar(reg) => 0xF029 | XY!(reg,0),
-//             Instruction::BCD(reg) => 0xF033 | XY!(reg,0),
-//             Instruction::RegDump(reg) => 0xF055 | XY!(reg,0),
-//             Instruction::RegLoad(reg) => 0xF065 | XY!(reg,0)
-//         }
-//     }
-// }
+impl std::fmt::Display for Instruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Instruction::Nop => write!(f, "NOP"),
+            Instruction::ClearScreen => write!(f, "CLS"),
+            Instruction::Ret => write!(f, "RET"),
+            Instruction::Jump(v) => write!(f, "JMP {}", v),
+            Instruction::Call(v) => write!(f, "CALL {}", v),
+            Instruction::SkipEqImm(reg, imm) => write!(f, "SKEI {} {}", reg, imm),
+            Instruction::SkipNeImm(reg, imm ) =>  write!(f, "SKNI {} {}", reg, imm),
+            Instruction::SkipEqReg(r1, r2 ) => write!(f, "SKEV {} {}", r1, r2),
+            Instruction::SetImm(reg, imm) => write!(f, "MOVI {reg} {imm}"),
+            Instruction::AddImm(reg, imm) => write!(f, "ADDI {reg} {imm}"),
+            Instruction::SetReg(r1,r2) => write!(f, "MOVV {r1} {r2}"),
+            Instruction::OrReg(r1,r2 ) => write!(f, "OR {r1} {r2}"),
+            Instruction::AndReg(r1,r2 ) => write!(f, "AND {r1} {r2}"),
+            Instruction::XorReg(r1,r2 ) => write!(f, "XOR {r1} {r2}"),
+            Instruction::AddReg(r1,r2 ) => write!(f, "ADDV {r1} {r2}"),
+            Instruction::SubReg(r1,r2 ) => write!(f, "SUBV {r1} {r2}"),
+            Instruction::Rsh(r1 ) => write!(f, "RSH {r1}"),
+            Instruction::SubFrom(r1,r2 ) => write!(f, "SUBF {r1} {r2}"),
+            Instruction::Lsh(r1 ) => write!(f, "LSH {r1}"),
+            Instruction::SkipNeReg(r1,r2 )=> write!(f, "SKNV {r1} {r2}"),
+            Instruction::SetMemPtr(imm) => write!(f, "MOVM {imm}"),
+            Instruction::JumpOffset(imm) => write!(f, "JOFF {imm}"),
+            Instruction::Rand(reg,imm ) => write!(f, "RAND {reg} {imm}"),
+            Instruction::Draw(x,y ,n) => write!(f, "DRAW {x} {y} {n}"),
+            Instruction::SkipKey(reg) => write!(f, "SKK {reg}"),
+            Instruction::SkipNoKey(reg) => write!(f, "SNK {reg}"),
+            Instruction::GetDelay(reg) => write!(f, "GETD {reg}"),
+            Instruction::WaitForKey(reg) => write!(f, "WAIT {reg}"),
+            Instruction::SetDelay(reg) => write!(f, "MOVD {reg}"),
+            Instruction::SetSound(reg) => write!(f, "MOVS {reg}"),
+            Instruction::AddMemPtr(reg) => write!(f, "ADDM {reg}"),
+            Instruction::SetChar(reg) => write!(f, "MOVC {reg}"),
+            Instruction::BCD(reg) => write!(f, "BCD {reg}"),
+            Instruction::RegDump(reg) => write!(f, "RDMP {reg}"),
+            Instruction::RegLoad(reg) => write!(f, "RLOAD {reg}")
+        }
+    }
+}
 
 
 
