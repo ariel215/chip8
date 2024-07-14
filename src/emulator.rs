@@ -1,3 +1,5 @@
+use graphics::KeyInput;
+
 use crate::*;
 
 /////////////////////////////////////
@@ -77,16 +79,16 @@ impl Default for Registers {
 /////////////////////////////
 
 impl Emulator{
-    pub fn windowed(clock_speed: Option<u64>)->Self{
+    pub fn windowed()->Self{
         Self{
-            clock_speed: clock_speed.unwrap_or(500),
+            clock_speed: 500,
             memory: Memory::default(),
             registers: Registers::default(),
-            frontend: Box::new(graphics::RaylibDisplay::new())
+            frontend: Box::new(graphics::RaylibDisplay::new()),
         }
     }
 
-    pub fn clock_speed(&mut self, speed: u64) -> &mut Self{
+    pub fn clock_speed(mut self, speed: u64) -> Self{
         self.clock_speed = speed;
         self
     }
@@ -97,8 +99,17 @@ impl Emulator{
     }
 
     pub fn step(&mut self) -> bool{
-        do_instruction(&mut self.memory, &mut self.registers);
-        self.frontend.update(&self.memory.display)
+        if matches!(self.frontend.get_input(), Some(KeyInput::DebugStep)) {
+            println!("{}", get_instruction(&self.memory, &self.registers));
+            do_instruction(&mut self.memory, &mut self.registers);
+            if self.registers.delay > 0{
+                self.registers.delay -= 1;
+            }
+            if self.registers.sound > 0 {
+                self.registers.sound -= 1;
+            }
+        }
+        return self.frontend.update(&self.memory.display)
     }
 
     pub fn run(&mut self){
@@ -109,7 +120,7 @@ impl Emulator{
             while frame_elapsed < frame_length{
                 self.memory.keys = [false; 16];
                 let tic = time::Instant::now();
-                if let Some(key) = self.frontend.get_input(){
+                if let Some(KeyInput::Chip8Key(key)) = self.frontend.get_input(){
                     self.memory.keys[key as usize] = true;
                     self.registers.key_flag = None;
                 } else {

@@ -3,15 +3,24 @@ use std::{collections::HashMap};
 use raylib::{self, color::Color, drawing::RaylibDraw, RaylibBuilder, RaylibHandle, RaylibThread, consts::KeyboardKey};
 
 use crate::Display;
+
+#[derive(Clone, Copy)]
+pub(crate) enum KeyInput{
+    Chip8Key(u8),
+    DebugStep
+} 
+
+
 pub trait Chip8Frontend{
+    /// Update the screen 
     fn update(&mut self, display: &Display) -> bool;
-    fn get_input(&mut self)->Option<u8>;
+    fn get_input(&mut self)->Option<KeyInput>;
 }
 
 pub struct RaylibDisplay{
     raylib_handle: RaylibHandle,
     raylib_thread: RaylibThread,
-    keymap: HashMap<KeyboardKey,u8>
+    keymap: HashMap<KeyboardKey,KeyInput>
 }
 
 impl RaylibDisplay{
@@ -42,9 +51,10 @@ impl RaylibDisplay{
             .resizable()
             .title("Chip-8")
             .build();
-        let keymap: HashMap<KeyboardKey, u8> = HashMap::from_iter(
-            Self::KEYMAP.iter().copied()
+        let mut keymap: HashMap<KeyboardKey, KeyInput> = HashMap::from_iter(
+            Self::KEYMAP.iter().copied().map(|(k,v)|(k,KeyInput::Chip8Key(v)))
         );
+        keymap.insert(KeyboardKey::KEY_ENTER,KeyInput::DebugStep);
         Self{
             raylib_handle:rhandle,
             raylib_thread:rthread,
@@ -72,7 +82,7 @@ impl Chip8Frontend for RaylibDisplay{
         return self.raylib_handle.window_should_close()
     }
     
-    fn get_input(&mut self) ->Option<u8>{
+    fn get_input(&mut self) -> Option<KeyInput> {
         self.raylib_handle.get_key_pressed().map(
             |k| self.keymap.get(&k).copied()
         ).flatten()

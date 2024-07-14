@@ -12,11 +12,12 @@ pub mod errors;
 pub mod instructions;
 pub mod emulator;
 
+
 pub struct Emulator{
     clock_speed: u64, // Cycles per second,
     memory: Memory,
     registers: Registers,
-    frontend: Box<dyn graphics::Chip8Frontend>
+    frontend: Box<dyn graphics::Chip8Frontend>,
 }
 
 

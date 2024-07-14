@@ -11,8 +11,8 @@ use itertools::{self, Itertools};
 struct Args{
     input: ClioPath,
     output: ClioPath,
-    #[arg(short, long)]
-    disassemble: Option<bool>
+    #[arg(short, long,)]
+    disassemble: bool
 }
 
 struct ParsingError{
@@ -22,7 +22,7 @@ struct ParsingError{
 
 fn main(){
     let args = Args::parse();
-    if args.disassemble.is_some_and(|d|d){
+    if args.disassemble{
         disassemble(args.input, args.output)
     } else {
         assemble(args.input, args.output)
