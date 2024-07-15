@@ -26,6 +26,7 @@ fn main() {
     }
     emulator.load_rom(&instructions);
     if args.debug{
+        emulator.debug();
         loop{
             if emulator.step(){
                 return;

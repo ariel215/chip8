@@ -7,7 +7,7 @@ type Reg = u8;
 type Display = Array2<bool>;
 
 
-pub mod graphics;
+pub mod frontend;
 pub mod errors;
 pub mod instructions;
 pub mod emulator;
@@ -17,7 +17,7 @@ pub struct Emulator{
     clock_speed: u64, // Cycles per second,
     memory: Memory,
     registers: Registers,
-    frontend: Box<dyn graphics::Chip8Frontend>,
+    frontend: Box<dyn frontend::Chip8Frontend>,
 }
 
 

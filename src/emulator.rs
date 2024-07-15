@@ -1,4 +1,4 @@
-use graphics::KeyInput;
+use frontend::KeyInput;
 
 use crate::*;
 
@@ -8,18 +8,19 @@ use crate::*;
 
 #[inline]
 fn get_bit(char: u8, index: usize) -> bool{
+    assert!(index < 8);
     let mask = 1 << 7-index;
     let masked_char = char & mask;
-    (masked_char >> index) != 0
+    (masked_char >> 7-index) == 1
 }
 
 #[test]
 fn test_bytes(){
     let test:u8 = 0b01001011;
-    assert_eq!(get_bit(test, 0), false);
-    assert_eq!(get_bit(test, 1), true);
-    assert_eq!(get_bit(test,2), false);
-    assert_eq!(get_bit(test,3), false);
+    let test_bools = [false, true, false ,false, true, false, true, true];
+    for i in 0..8{
+        assert_eq!(get_bit(test, i), test_bools[i], "test failed on case {i}");
+    }
 }
 
 impl Default for Memory {
@@ -84,8 +85,12 @@ impl Emulator{
             clock_speed: 500,
             memory: Memory::default(),
             registers: Registers::default(),
-            frontend: Box::new(graphics::RaylibDisplay::new()),
+            frontend: Box::new(frontend::RaylibDisplay::new()),
         }
+    }
+
+    pub fn debug(&mut self) {
+        self.frontend.debug_mode()
     }
 
     pub fn clock_speed(mut self, speed: u64) -> Self{
@@ -109,7 +114,7 @@ impl Emulator{
                 self.registers.sound -= 1;
             }
         }
-        return self.frontend.update(&self.memory.display)
+        return self.frontend.update(&self.memory, &self.registers);
     }
 
     pub fn run(&mut self){
@@ -141,7 +146,7 @@ impl Emulator{
             if self.registers.sound > 0 {
                 self.registers.sound -= 1;
             }
-            if self.frontend.update(&self.memory.display){
+            if self.frontend.update(&self.memory, &self.registers){
                 break;
             }
         }
