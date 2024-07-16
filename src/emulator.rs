@@ -28,7 +28,8 @@ impl Default for Memory {
         let mut mem = Self { 
             ram: [0;4096], 
             display: Display::from_elem([DISPLAY_COLUMNS, DISPLAY_ROWS], false),
-            keys: Default::default() 
+            keys: Default::default(),
+            stack: Default::default()
         };
         mem.ram[0..CHAR_SPRITES.len()].copy_from_slice(&CHAR_SPRITES);
         mem
@@ -195,16 +196,12 @@ pub fn do_instruction(memory: &mut Memory, registers: &mut Registers){
     match instruction {
         Instruction::Nop => (),
         Instruction::Jump(addr) => registers.pc = addr as usize,
-        Instruction::Call(addr) => {            
-            memory.ram[registers.sp-1..=registers.sp].copy_from_slice(&(registers.pc as u16).to_be_bytes());
-            registers.sp -= 2;
-            registers.pc = addr as usize
+        Instruction::Call(addr) => {  
+            memory.stack.push(registers.pc);
+            registers.pc = addr as usize;          
         }, 
         Instruction::Ret => {
-            registers.sp += 2;
-            let mut bytes :[u8;2] = [0,0];
-            bytes.copy_from_slice(&memory.ram[registers.sp-1..=registers.sp]);
-            registers.pc = u16::from_be_bytes(bytes) as usize;
+            registers.pc = memory.stack.pop().expect("Returning from empty call stack")
         }
         Instruction::SkipEqImm(reg,imm ) => {
             if registers.vn[reg as usize] == imm {
@@ -299,20 +296,20 @@ pub fn do_instruction(memory: &mut Memory, registers: &mut Registers){
         Instruction::BCD(reg) => {
             let val = registers.vn[reg as usize];
             let ones = val % 10;
-            let tens = val % 100 - ones;
-            let hundreds = val - tens - ones;
+            let tens = (val % 100) / 10;
+            let hundreds = (val - tens - ones) / 100;
             memory.ram[registers.i] = hundreds;
             memory.ram[registers.i+1] = tens;
             memory.ram[registers.i+2] = ones; 
         }
         Instruction::RegDump(reg) => {
-                memory.ram[registers.i..registers.i + reg as usize].copy_from_slice(&registers.vn[0..reg as usize])
+                memory.ram[registers.i..(registers.i + reg as usize) + 1].copy_from_slice(&registers.vn[0..(reg+1) as usize])
         }
         Instruction::RegLoad(vx) => {
-            registers.vn[0..vx as usize].copy_from_slice(&memory.ram[registers.i..registers.i + vx as usize])
+            registers.vn[0..vx as usize + 1].copy_from_slice(&memory.ram[registers.i..registers.i + vx as usize + 1])
         }
     }
-    if !matches!(instruction, Instruction::Jump(_) | Instruction::JumpOffset(_) | Instruction::Call(_) | Instruction::Ret){
+    if !matches!(instruction, Instruction::Jump(_) | Instruction::JumpOffset(_) | Instruction::Call(_) ){
         registers.pc += INSTRUCTION_SIZE;
     }
 }

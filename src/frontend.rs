@@ -51,8 +51,8 @@ impl RaylibDisplay{
     ];
     const DEBUG_MAIN_WINDOW: Rectangle = Rectangle{x:0.0, y:0.0, width: 0.5, height: 0.5};
     const DEBUG_INSTRUCTION_WINDOW: Rectangle = Rectangle{x:0.0, y:0.5, width: 0.5, height: 0.5};
-    const DEBUG_MEMORY_WINDOW: Rectangle = Rectangle{x: 0.5, y:0.0, width: 0.5, height: 0.75};
-    const DEBUG_REGISTER_WINDOW: Rectangle = Rectangle{x: 0.5, y:0.75, width: 0.5, height: 0.25};
+    const DEBUG_MEMORY_WINDOW: Rectangle = Rectangle{x: 0.5, y:0.0, width: 0.5, height: 0.5};
+    const DEBUG_REGISTER_WINDOW: Rectangle = Rectangle{x: 0.5, y:0.5, width: 0.5, height: 0.5};
     pub fn new()->Self{
         let (rhandle, rthread) = RaylibBuilder::default()
             .width(Self::WINDOW_WIDTH)
@@ -126,7 +126,7 @@ impl Chip8Frontend for RaylibDisplay{
                 let text = addr_instrs.iter().map(|(addr, instr)| {
                     match instr{
                         Instruction::Nop => "".to_string(),
-                        _ => format!("{}\t\t{}", addr, instr)}
+                        _ => format!("0x{:x}\t\t{}", addr, instr)}
                     }
                 ).join(";\n");
                 let screen_dims = vec2!(screen_width, screen_height);
@@ -139,8 +139,8 @@ impl Chip8Frontend for RaylibDisplay{
                      18, Color::BLACK);
         
                 // Draw memory view
-                let window_before = 0;//if registers.i < 33 {0} else {32};
-                let window_after = 64;
+                let window_before = 0;
+                let window_after = 8 * 4; // characters by lines
                 let ram_slice = &memory.ram[registers.i - (window_before * INSTRUCTION_SIZE)..registers.i + (window_after * INSTRUCTION_SIZE)];
                 let text = ram_slice.iter().tuples().map(|(b0,b1,b2, b3, b4, b5, b6, b7)| {
                     format!("{:2x} {:2x} {:2x} {:2x} {:2x} {:2x} {:2x} {:2x}", b0, b1, b2, b3, b4, b5, b6, b7)
@@ -155,9 +155,34 @@ impl Chip8Frontend for RaylibDisplay{
                     (screen_height as f32 * Self::DEBUG_MEMORY_WINDOW.y) as i32 + 10 ,
                      18, Color::BLACK);
 
-                // self.draw_registers(handle, registers) 
-            }
+                let mut register_desc: Vec<_> = registers.vn.iter().enumerate().map(
+                    |(index, value)| format!("V{:x}: {:x}", index, value)
+                ).collect();
+                register_desc.push(format!("delay: {}", registers.delay));
+                register_desc.push(format!("sound: {}", registers.sound));
+                register_desc.push(format!("pc: {:x}", registers.pc));
+                register_desc.push(format!("sp: {:x}", registers.sp));
+                register_desc.push(format!("memory: {:x}", registers.i));
+
+                handle.draw_rectangle_v(times(vec2!(Self::DEBUG_REGISTER_WINDOW), screen_dims),
+                    times(vec2!(Self::DEBUG_REGISTER_WINDOW.width, Self::DEBUG_REGISTER_WINDOW.height), screen_dims),
+                     Color::DARKGRAY);
+
+
+                // itertools::tuples() drops any elements that don't fit in a tuple, 
+                // so we need to make sure that everything lines up
+                while register_desc.len() % 4 != 0{
+                    register_desc.push(String::new());
+                }
     
+                let text = register_desc.iter().tuples().map(
+                    |(v1, v2, v3, v4)| format!("{v1}\t{v2}\t{v3}\t{v4}\t")
+                ).join("\n");
+                handle.draw_text(&text,
+                (screen_width as f32 * Self::DEBUG_REGISTER_WINDOW.x) as i32 + 5,
+                (screen_height as f32 * Self::DEBUG_REGISTER_WINDOW.y) as i32 + 10 ,
+                    18, Color::WHITE);
+                }
         }
 
         return self.raylib_handle.window_should_close()

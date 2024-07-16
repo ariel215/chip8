@@ -153,7 +153,9 @@ pub struct Memory{
     /// Graphic display
     display: Display,
     /// Key array
-    keys: [bool; 16]
+    keys: [bool; 16],
+    // call stack
+    stack: Vec<usize>
 }
 
 #[derive(Debug)]
