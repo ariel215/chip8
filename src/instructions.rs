@@ -63,6 +63,13 @@ impl Instruction{
     }
 }
 
+#[test]
+fn test_mnemonics(){
+    let instr = Instruction::from_mnemonic("wait 10").unwrap();
+    assert!(matches!(Instruction::WaitForKey(10), instr))
+}
+
+
 // First register argument
 macro_rules! X {
     ($opcode: expr) => {{
@@ -145,7 +152,7 @@ impl From<Instruction> for u16 {
             Instruction::SkipKey(reg) => 0xE09E | XY!(reg,0),
             Instruction::SkipNoKey(reg) => 0xE0A1 | XY!(reg,0),
             Instruction::GetDelay(reg) => 0xF007 | XY!(reg,0),
-            Instruction::WaitForKey(reg) => 0xF009 | XY!(reg,0),
+            Instruction::WaitForKey(reg) => 0xF00A | XY!(reg,0),
             Instruction::SetDelay(reg) => 0xF015 | XY!(reg,0),
             Instruction::SetSound(reg) => 0xF018 | XY!(reg,0),
             Instruction::AddMemPtr(reg) => 0xF01E | XY!(reg,0),

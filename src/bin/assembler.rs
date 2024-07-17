@@ -73,6 +73,8 @@ fn assemble(input: ClioPath, output: ClioPath){
                 eprintln!("Could not parse '{}' : {}", error.error.mnemonic, error.error.message);
             }
         }
+    } else {
+        eprintln!("Could not open file {input_name}");
     }
 }
 

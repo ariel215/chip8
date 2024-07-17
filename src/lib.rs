@@ -173,8 +173,7 @@ pub struct Registers{
     sp: usize,
     /// RAM pointer
     i: usize,
-    /// when Some: block until key press, then store key 
-    /// in the register and reset
+    /// When set, stores the register to store the next keypress in
     key_flag: Option<usize>
 }
 

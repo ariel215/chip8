@@ -128,13 +128,14 @@ impl Emulator{
                 let tic = time::Instant::now();
                 if let Some(KeyInput::Chip8Key(key)) = self.frontend.get_input(){
                     self.memory.keys[key as usize] = true;
-                    self.registers.key_flag = None;
-                } else {
-                    if self.registers.key_flag.is_some(){
-                        continue;
+                    if let Some(dest) = self.registers.key_flag{
+                        self.registers.vn[dest] = key;
+                        self.registers.key_flag = None;
                     }
                 }
-                do_instruction(&mut self.memory, &mut self.registers);
+                if self.registers.key_flag.is_none(){
+                    do_instruction(&mut self.memory, &mut self.registers);
+                }
                 let toc = time::Instant::now();
                 if toc - tic < cycle_length{
                     thread::sleep(cycle_length - (toc-tic))
