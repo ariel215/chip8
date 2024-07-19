@@ -1,4 +1,3 @@
-use std::{fmt::Display, num::ParseIntError};
 
 /// Represents an error encountered while parsing chip8 ASM
 #[derive(Debug)]

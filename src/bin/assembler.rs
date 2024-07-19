@@ -45,7 +45,7 @@ fn disassemble(input: ClioPath, output: ClioPath){
     ).take_while(|i| !matches!(*i,Instruction::Nop)).collect::<Vec<Instruction>>();
     let mut mnemonics = instrs.iter().map(|i| i.to_string());
     let mut output = output.create().expect(&format!("Could not create file {}", output_name));
-    output.write(mnemonics.join(";\n").as_bytes())
+    output.write_all(mnemonics.join(";\n").as_bytes())
         .expect(&format!("could not write to file {output_name}"));
 }
 
@@ -81,7 +81,7 @@ fn assemble(input: ClioPath, output: ClioPath){
 fn to_binary(text: &str) -> Result<Vec<u16>, ParsingError>{
     let mut bytes: Vec<u16> = Vec::new();
     for (line_number, line) in text.lines().enumerate(){
-        let mnemonics = line.split(";");
+        let mnemonics = line.split(';');
         for mnemonic in mnemonics {
             if mnemonic.is_empty() {continue;}
             match Instruction::from_mnemonic(mnemonic.trim()){

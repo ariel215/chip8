@@ -1,6 +1,5 @@
 use std::{thread, time::{self, Duration}};
 use ndarray::prelude::*;
-use rand;
 
 type Addr = u16;
 type Reg = u8;
@@ -20,6 +19,11 @@ pub struct Emulator{
     frontend: Box<dyn frontend::Chip8Frontend>,
 }
 
+/// What kind of display to use for the emulator
+pub enum EmulatorMode{
+    Windowed,
+    // Todo: add TUI frontend
+}
 
 #[derive(Debug, PartialEq, Eq)]
 // Todo: turn these docs into attributes for a proc macro

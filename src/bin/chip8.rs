@@ -1,6 +1,6 @@
 use std::io::Read;
 
-use chip8::Emulator;
+use chip8::{EmulatorMode, Emulator};
 
 use clap::Parser;
 use clio::*;
@@ -20,7 +20,7 @@ fn main() {
     let mut input = args.rom.open().expect(&format!("No file named {}", rom_name));
     let mut instructions = Vec::new();
     input.read_to_end(&mut instructions).expect(&format!("Failed to read {}", rom_name ));
-    let mut emulator = Emulator::windowed();
+    let mut emulator = Emulator::init(EmulatorMode::Windowed);
     if args.speed.is_some(){
         emulator = emulator.clock_speed(args.speed.unwrap());
     }

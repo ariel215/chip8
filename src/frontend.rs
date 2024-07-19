@@ -1,9 +1,9 @@
-use std::{cmp::min, collections::HashMap};
+use std::collections::HashMap;
 
 use itertools::Itertools;
 use raylib::{self, color::Color, consts::KeyboardKey, drawing::RaylibDraw, ffi::Vector2, math::Rectangle, RaylibBuilder, RaylibHandle, RaylibThread};
 
-use crate::{emulator::{self, INSTRUCTION_SIZE}, Display, Instruction, Memory, Registers};
+use crate::{emulator::INSTRUCTION_SIZE, Instruction, Memory, Registers};
 
 #[derive(Clone, Copy)]
 pub(crate) enum KeyInput{
@@ -53,7 +53,10 @@ impl RaylibDisplay{
     const DEBUG_INSTRUCTION_WINDOW: Rectangle = Rectangle{x:0.0, y:0.5, width: 0.5, height: 0.5};
     const DEBUG_MEMORY_WINDOW: Rectangle = Rectangle{x: 0.5, y:0.0, width: 0.5, height: 0.5};
     const DEBUG_REGISTER_WINDOW: Rectangle = Rectangle{x: 0.5, y:0.5, width: 0.5, height: 0.5};
-    pub fn new()->Self{
+}
+
+impl Default for RaylibDisplay{
+    fn default() -> Self {
         let (rhandle, rthread) = RaylibBuilder::default()
             .width(Self::WINDOW_WIDTH)
             .height(Self::WINDOW_HEIGHT)
@@ -184,14 +187,13 @@ impl Chip8Frontend for RaylibDisplay{
                     18, Color::WHITE);
                 }
         }
-
-        return self.raylib_handle.window_should_close()
+        self.raylib_handle.window_should_close()
     }
     
     fn get_input(&mut self) -> Option<KeyInput> {
-        self.raylib_handle.get_key_pressed().map(
+        self.raylib_handle.get_key_pressed().and_then(
             |k| self.keymap.get(&k).copied()
-        ).flatten()
+        )
     }
     
     fn debug_mode(&mut self) {

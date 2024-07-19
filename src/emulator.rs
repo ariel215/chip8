@@ -1,4 +1,4 @@
-use frontend::KeyInput;
+use frontend::{KeyInput, RaylibDisplay};
 
 use crate::*;
 
@@ -9,9 +9,9 @@ use crate::*;
 #[inline]
 fn get_bit(char: u8, index: usize) -> bool{
     assert!(index < 8);
-    let mask = 1 << 7-index;
+    let mask = 1 << (7-index);
     let masked_char = char & mask;
-    (masked_char >> 7-index) == 1
+    (masked_char >> (7-index)) == 1
 }
 
 #[test]
@@ -44,10 +44,11 @@ impl Memory{
     fn set_row(&mut self, x: usize, y: usize, byte: u8) -> bool{
         let mut collided = false;
         for i in 0..8 {
-            let idx = (x+i) % DISPLAY_COLUMNS;
-            let current = self.display[[idx, y]];
+            let x_wrapped = (x+i) % DISPLAY_COLUMNS;
+            let y_wrapped = y % DISPLAY_ROWS;
+            let current = self.display[[x_wrapped, y_wrapped]];
             let new = get_bit(byte, i);
-            self.display[[idx,y]] ^= new;
+            self.display[[x_wrapped,y_wrapped]] ^= new;
             if !new {
                 collided |= !current;
             }
@@ -80,13 +81,14 @@ impl Default for Registers {
 /// Emulator
 /////////////////////////////
 
+
 impl Emulator{
-    pub fn windowed()->Self{
+    pub fn init(_mode: EmulatorMode)->Self{
         Self{
             clock_speed: 500,
             memory: Memory::default(),
             registers: Registers::default(),
-            frontend: Box::new(frontend::RaylibDisplay::new()),
+            frontend: Box::<RaylibDisplay>::default()
         }
     }
 
@@ -104,9 +106,9 @@ impl Emulator{
         self
     }
 
+    /// Have the emulator proceed forward for a single instruction
     pub fn step(&mut self) -> bool{
         if matches!(self.frontend.get_input(), Some(KeyInput::DebugStep)) {
-            println!("{}", get_instruction(&self.memory, &self.registers));
             do_instruction(&mut self.memory, &mut self.registers);
             if self.registers.delay > 0{
                 self.registers.delay -= 1;
@@ -115,7 +117,7 @@ impl Emulator{
                 self.registers.sound -= 1;
             }
         }
-        return self.frontend.update(&self.memory, &self.registers);
+        self.frontend.update(&self.memory, &self.registers)
     }
 
     pub fn run(&mut self){
@@ -123,8 +125,17 @@ impl Emulator{
         let frame_length = Duration::from_millis(1000/60);
         loop {
             let mut frame_elapsed = Duration::ZERO;
+            // At the beginning of each frame, we: 
+            // - clear the key buffer
+            // - tick down the delay and sound registers
+            self.memory.keys = [false; 16];
+            if self.registers.delay > 0{
+                self.registers.delay -= 1;
+            }
+            if self.registers.sound > 0 {
+                self.registers.sound -= 1;
+            }
             while frame_elapsed < frame_length{
-                self.memory.keys = [false; 16];
                 let tic = time::Instant::now();
                 if let Some(KeyInput::Chip8Key(key)) = self.frontend.get_input(){
                     self.memory.keys[key as usize] = true;
@@ -141,12 +152,6 @@ impl Emulator{
                     thread::sleep(cycle_length - (toc-tic))
                 }
                 frame_elapsed += time::Instant::now() - tic;
-            }
-            if self.registers.delay > 0{
-                self.registers.delay -= 1;
-            }
-            if self.registers.sound > 0 {
-                self.registers.sound -= 1;
             }
             if self.frontend.update(&self.memory, &self.registers){
                 break;
@@ -240,12 +245,12 @@ pub fn do_instruction(memory: &mut Memory, registers: &mut Registers){
             let (result, flag) = subtract_with_underflow(
                 registers.vn[vx as usize], registers.vn[vy as usize]);
             registers.vn[vx as usize] = result;
-            registers.vn[15 as usize] = flag as u8;
+            registers.vn[15_usize] = flag as u8;
         }
         Instruction::SubFrom(vx, vy) => {
             let (result, flag) = subtract_with_underflow(vy, vx);
             registers.vn[vx as usize] = result;
-            registers.vn[15 as usize] = flag as u8;
+            registers.vn[15_usize] = flag as u8;
         }
         Instruction::ClearScreen => memory.display.fill(false),
         // Draws n bytes from memory on screen
@@ -253,8 +258,8 @@ pub fn do_instruction(memory: &mut Memory, registers: &mut Registers){
         Instruction::Draw(vx,vy ,n ) => {
             let x = registers.vn[vx as usize] as usize;
             let y = registers.vn[vy as usize] as usize;
-            assert!(x < DISPLAY_COLUMNS);
-            assert!(y < DISPLAY_ROWS);
+            // assert!(x < DISPLAY_COLUMNS);
+            // assert!(y < DISPLAY_ROWS);
             for count in 0..n as usize{
                 let addr = registers.i + count;
                 let sprite_row = memory.ram[addr];
