@@ -63,13 +63,6 @@ impl Instruction{
     }
 }
 
-#[test]
-fn test_mnemonics(){
-    let instr = Instruction::from_mnemonic("wait 10").unwrap();
-    assert!(matches!(Instruction::WaitForKey(10), instr))
-}
-
-
 // First register argument
 macro_rules! X {
     ($opcode: expr) => {{

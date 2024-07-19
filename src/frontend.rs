@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use itertools::Itertools;
-use raylib::{self, color::Color, consts::KeyboardKey, drawing::RaylibDraw, ffi::Vector2, math::Rectangle, RaylibBuilder, RaylibHandle, RaylibThread};
+use raylib::{self, audio::{RaylibAudio, Sound}, color::Color, consts::KeyboardKey, drawing::RaylibDraw, ffi::Vector2, math::Rectangle, RaylibBuilder, RaylibHandle, RaylibThread};
+
 
 use crate::{emulator::INSTRUCTION_SIZE, Instruction, Memory, Registers};
 
@@ -19,11 +20,15 @@ pub(crate) trait Chip8Frontend{
     fn get_input(&mut self)->Option<KeyInput>;
     /// Toggle debug mode
     fn debug_mode(&mut self);
+    fn start_sound(&mut self);
+    fn end_sound(&mut self);
 }
 
 pub struct RaylibDisplay{
     raylib_handle: RaylibHandle,
     raylib_thread: RaylibThread,
+    raylib_audio: RaylibAudio,
+    sound: Sound,
     keymap: HashMap<KeyboardKey,KeyInput>,
     debug_mode: bool
 }
@@ -53,6 +58,7 @@ impl RaylibDisplay{
     const DEBUG_INSTRUCTION_WINDOW: Rectangle = Rectangle{x:0.0, y:0.5, width: 0.5, height: 0.5};
     const DEBUG_MEMORY_WINDOW: Rectangle = Rectangle{x: 0.5, y:0.0, width: 0.5, height: 0.5};
     const DEBUG_REGISTER_WINDOW: Rectangle = Rectangle{x: 0.5, y:0.5, width: 0.5, height: 0.5};
+    const SOUND_FILE: &'static str = "resources/buzz.ogg";
 }
 
 impl Default for RaylibDisplay{
@@ -66,11 +72,15 @@ impl Default for RaylibDisplay{
         let mut keymap: HashMap<KeyboardKey, KeyInput> = HashMap::from_iter(
             Self::KEYMAP.iter().copied().map(|(k,v)|(k,KeyInput::Chip8Key(v)))
         );
+        let raudio = RaylibAudio::init_audio_device();
+        let sound = Sound::load_sound(Self::SOUND_FILE).unwrap();
         keymap.insert(KeyboardKey::KEY_ENTER,KeyInput::DebugStep);
         Self{
             raylib_handle:rhandle,
             raylib_thread:rthread,
             keymap,
+            raylib_audio: raudio,
+            sound,
             debug_mode: false
         }
     }
@@ -198,6 +208,14 @@ impl Chip8Frontend for RaylibDisplay{
     
     fn debug_mode(&mut self) {
         self.debug_mode = true;
+    }
+    
+    fn start_sound(&mut self) {
+        self.raylib_audio.play_sound(&self.sound)
+    }
+    
+    fn end_sound(&mut self) {
+        self.raylib_audio.stop_sound(&self.sound)
     }
 }
 

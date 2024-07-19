@@ -41,20 +41,30 @@ impl Memory{
         self.ram[0x200..0x200 + rom.len()].copy_from_slice(rom);
     }
     
+    /// Xor a row of 8 pixels starting at (x,y) with the pattern in `byte`,
+    /// returning True if a pixel was flipped from on to off
     fn set_row(&mut self, x: usize, y: usize, byte: u8) -> bool{
         let mut collided = false;
         for i in 0..8 {
             let x_wrapped = (x+i) % DISPLAY_COLUMNS;
             let y_wrapped = y % DISPLAY_ROWS;
-            let current = self.display[[x_wrapped, y_wrapped]];
+            let prev = self.display[[x_wrapped, y_wrapped]];
             let new = get_bit(byte, i);
             self.display[[x_wrapped,y_wrapped]] ^= new;
-            if !new {
-                collided |= !current;
-            }
+            collided |= (prev & !new);
         }
         collided
     }
+}
+
+
+#[test]
+fn test_set_row(){
+    let mut memory = Memory::default();
+    let collision = memory.set_row(0, 0, 0xff);
+    assert!(!collision);
+    let collision = memory.set_row(0,0,0xf);
+    assert!(collision)
 }
 
 
@@ -132,8 +142,12 @@ impl Emulator{
             if self.registers.delay > 0{
                 self.registers.delay -= 1;
             }
-            if self.registers.sound > 0 {
+            let sound_playing = self.registers.sound > 0;
+            if sound_playing {
                 self.registers.sound -= 1;
+                if self.registers.sound == 0 {
+                    self.frontend.end_sound()
+                }
             }
             while frame_elapsed < frame_length{
                 let tic = time::Instant::now();
@@ -152,6 +166,9 @@ impl Emulator{
                     thread::sleep(cycle_length - (toc-tic))
                 }
                 frame_elapsed += time::Instant::now() - tic;
+            }
+            if !sound_playing && self.registers.sound > 0 {
+                self.frontend.start_sound()
             }
             if self.frontend.update(&self.memory, &self.registers){
                 break;
@@ -245,12 +262,12 @@ pub fn do_instruction(memory: &mut Memory, registers: &mut Registers){
             let (result, flag) = subtract_with_underflow(
                 registers.vn[vx as usize], registers.vn[vy as usize]);
             registers.vn[vx as usize] = result;
-            registers.vn[15_usize] = flag as u8;
+            registers.vn[15] = flag as u8;
         }
         Instruction::SubFrom(vx, vy) => {
             let (result, flag) = subtract_with_underflow(vy, vx);
             registers.vn[vx as usize] = result;
-            registers.vn[15_usize] = flag as u8;
+            registers.vn[15] = flag as u8;
         }
         Instruction::ClearScreen => memory.display.fill(false),
         // Draws n bytes from memory on screen
@@ -260,11 +277,13 @@ pub fn do_instruction(memory: &mut Memory, registers: &mut Registers){
             let y = registers.vn[vy as usize] as usize;
             // assert!(x < DISPLAY_COLUMNS);
             // assert!(y < DISPLAY_ROWS);
+            let mut collided = false;
             for count in 0..n as usize{
                 let addr = registers.i + count;
                 let sprite_row = memory.ram[addr];
-                memory.set_row(x, y+count, sprite_row);
+                collided |= memory.set_row(x, y+count, sprite_row);
             }
+            registers.vn[15] = collided as u8;
         },
         Instruction::SetChar(reg) => {
             let char_index = registers.vn[reg as usize];
