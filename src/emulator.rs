@@ -51,7 +51,7 @@ impl Memory{
             let prev = self.display[[x_wrapped, y_wrapped]];
             let new = get_bit(byte, i);
             self.display[[x_wrapped,y_wrapped]] ^= new;
-            collided |= (prev & !new);
+            collided |= prev & !new;
         }
         collided
     }
@@ -118,16 +118,22 @@ impl Emulator{
 
     /// Have the emulator proceed forward for a single instruction
     pub fn step(&mut self) -> bool{
-        if matches!(self.frontend.get_input(), Some(KeyInput::DebugStep)) {
-            do_instruction(&mut self.memory, &mut self.registers);
-            if self.registers.delay > 0{
-                self.registers.delay -= 1;
-            }
-            if self.registers.sound > 0 {
-                self.registers.sound -= 1;
-            }
+        for input in self.frontend.get_inputs(){ 
+        match input {
+            KeyInput::DebugStep =>{
+                do_instruction(&mut self.memory, &mut self.registers);
+                if self.registers.delay > 0{
+                    self.registers.delay -= 1;
+                }
+                if self.registers.sound > 0 {
+                    self.registers.sound -= 1;
+                }
+            },
+            KeyInput::Chip8Key(k) => self.memory.keys[k as usize] = !self.memory.keys[k as usize],
+            _ => {}
         }
-        self.frontend.update(&self.memory, &self.registers)
+    }
+    self.frontend.update(&self.memory, &self.registers)
     }
 
     pub fn run(&mut self){
@@ -151,11 +157,13 @@ impl Emulator{
             }
             while frame_elapsed < frame_length{
                 let tic = time::Instant::now();
-                if let Some(KeyInput::Chip8Key(key)) = self.frontend.get_input(){
-                    self.memory.keys[key as usize] = true;
-                    if let Some(dest) = self.registers.key_flag{
-                        self.registers.vn[dest] = key;
-                        self.registers.key_flag = None;
+                for k in self.frontend.get_inputs(){
+                    if let KeyInput::Chip8Key(key) = k{
+                        self.memory.keys[key as usize] = true;
+                        if let Some(dest) = self.registers.key_flag{
+                            self.registers.vn[dest] = key;
+                            self.registers.key_flag = None;
+                        }
                     }
                 }
                 if self.registers.key_flag.is_none(){

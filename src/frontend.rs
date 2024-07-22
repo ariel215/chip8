@@ -17,7 +17,7 @@ pub(crate) trait Chip8Frontend{
     /// Rendering
     fn update(&mut self, memory: &Memory, registers: &Registers) -> bool;
     /// Keyboard input
-    fn get_input(&mut self)->Option<KeyInput>;
+    fn get_inputs(&mut self)->Vec<KeyInput>;
     /// Toggle debug mode
     fn debug_mode(&mut self);
     fn start_sound(&mut self);
@@ -200,10 +200,12 @@ impl Chip8Frontend for RaylibDisplay{
         self.raylib_handle.window_should_close()
     }
     
-    fn get_input(&mut self) -> Option<KeyInput> {
-        self.raylib_handle.get_key_pressed().and_then(
-            |k| self.keymap.get(&k).copied()
-        )
+    fn get_inputs(&mut self) -> Vec<KeyInput> {
+        self.keymap.keys().filter_map(
+            |k| if self.raylib_handle.is_key_down(*k){
+                Some(self.keymap[k])
+            } else {None}
+        ).collect_vec()
     }
     
     fn debug_mode(&mut self) {
