@@ -1,4 +1,5 @@
 use frontend::{KeyInput, RaylibDisplay};
+use std::{thread::sleep, time::{Duration, Instant}};
 
 use crate::*;
 
@@ -93,17 +94,14 @@ impl Default for Registers {
 
 
 impl Emulator{
-    pub fn init(_mode: EmulatorMode)->Self{
+    pub fn init(_mode: DisplayMode)->Self{
         Self{
             clock_speed: 500,
             memory: Memory::default(),
             registers: Registers::default(),
-            frontend: Box::<RaylibDisplay>::default()
+            frontend: Box::<RaylibDisplay>::default(),
+            mode: EmulatorMode::Paused
         }
-    }
-
-    pub fn debug(&mut self) {
-        self.frontend.debug_mode()
     }
 
     pub fn clock_speed(mut self, speed: u64) -> Self{
@@ -116,73 +114,90 @@ impl Emulator{
         self
     }
 
-    /// Have the emulator proceed forward for a single instruction
-    pub fn step(&mut self) -> bool{
-        for input in self.frontend.get_inputs(){ 
-        match input {
-            KeyInput::DebugStep =>{
-                do_instruction(&mut self.memory, &mut self.registers);
-                if self.registers.delay > 0{
-                    self.registers.delay -= 1;
-                }
-                if self.registers.sound > 0 {
-                    self.registers.sound -= 1;
-                }
-            },
-            KeyInput::Chip8Key(k) => self.memory.keys[k as usize] = !self.memory.keys[k as usize],
-            _ => {}
-        }
-    }
-    self.frontend.update(&self.memory, &self.registers)
+    pub fn debug(&mut self){
+        self.mode = EmulatorMode::Paused;
+        self.frontend.toggle_debug()
     }
 
     pub fn run(&mut self){
+        self.mode = EmulatorMode::Running;
         let cycle_length = Duration::from_millis(1000 / self.clock_speed);
         let frame_length = Duration::from_millis(1000/60);
         loop {
-            let mut frame_elapsed = Duration::ZERO;
-            // At the beginning of each frame, we: 
-            // - clear the key buffer
-            // - tick down the delay and sound registers
-            self.memory.keys = [false; 16];
-            if self.registers.delay > 0{
-                self.registers.delay -= 1;
-            }
-            let sound_playing = self.registers.sound > 0;
-            if sound_playing {
-                self.registers.sound -= 1;
-                if self.registers.sound == 0 {
-                    self.frontend.end_sound()
-                }
-            }
-            while frame_elapsed < frame_length{
-                let tic = time::Instant::now();
+            match self.mode{
+                EmulatorMode::Paused => {
                 for k in self.frontend.get_inputs(){
-                    if let KeyInput::Chip8Key(key) = k{
-                        self.memory.keys[key as usize] = true;
-                        if let Some(dest) = self.registers.key_flag{
-                            self.registers.vn[dest] = key;
-                            self.registers.key_flag = None;
-                        }
+                    match k {
+                        KeyInput::Step => {
+                            do_instruction(&mut self.memory, &mut self.registers);
+                            if self.registers.delay > 0{
+                                self.registers.delay -= 1;
+                            }
+                            if self.registers.sound >0 {
+                                self.registers.sound -= 1;
+                            }
+                        },
+                        KeyInput::Chip8Key(val) => self.memory.keys[val as usize] = true,
+                        KeyInput::TogglePause => self.mode = EmulatorMode::Running,
+                        KeyInput::ToggleDebug => {self.frontend.toggle_debug()}
                     }
                 }
-                if self.registers.key_flag.is_none(){
-                    do_instruction(&mut self.memory, &mut self.registers);
+                if self.frontend.update(&self.memory, &self.registers) {break;}
+                sleep(Duration::from_millis(50));
+            },
+            EmulatorMode::Running => {
+                let mut frame_elapsed = Duration::ZERO;
+                // At the beginning of each frame, we: 
+                // - clear the key buffer
+                // - tick down the delay and sound registers
+                self.memory.keys = [false; 16];
+                if self.registers.delay > 0{
+                    self.registers.delay -= 1;
                 }
-                let toc = time::Instant::now();
-                if toc - tic < cycle_length{
-                    thread::sleep(cycle_length - (toc-tic))
+                let sound_playing = self.registers.sound > 0;
+                if sound_playing {
+                    self.registers.sound -= 1;
+                    if self.registers.sound == 0 {
+                        self.frontend.end_sound()
+                    }
                 }
-                frame_elapsed += time::Instant::now() - tic;
-            }
-            if !sound_playing && self.registers.sound > 0 {
-                self.frontend.start_sound()
-            }
-            if self.frontend.update(&self.memory, &self.registers){
-                break;
+                while frame_elapsed < frame_length{
+                    let tic = Instant::now();
+                    for k in self.frontend.get_inputs(){
+                        match k {
+                            KeyInput::Chip8Key(key) => {
+                            self.memory.keys[key as usize] = true;
+                            if let Some(dest) = self.registers.key_flag{
+                                self.registers.vn[dest] = key;
+                                self.registers.key_flag = None;
+                            }
+                        },
+                            KeyInput::Step => {},
+                            KeyInput::TogglePause => self.mode = EmulatorMode::Paused,
+                            KeyInput::ToggleDebug => {self.frontend.toggle_debug()}
+                        }
+                    }
+                    if self.registers.key_flag.is_none(){
+                        do_instruction(&mut self.memory, &mut self.registers);
+                    }
+                    let toc = Instant::now();
+                    if toc - tic < cycle_length{
+                        sleep(cycle_length - (toc-tic))
+                    }
+                    frame_elapsed += Instant::now() - tic;
+                }
+                // At the end of each frame, update the screen and toggle 
+                if !sound_playing && self.registers.sound > 0 {
+                    self.frontend.start_sound()
+                }
+                if self.frontend.update(&self.memory, &self.registers){
+                    break;
+                }
             }
         }
+        }
     }
+
 }
 
 /// Get the current instruction from memory

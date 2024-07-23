@@ -9,7 +9,9 @@ use crate::{emulator::INSTRUCTION_SIZE, Instruction, Memory, Registers};
 #[derive(Clone, Copy)]
 pub(crate) enum KeyInput{
     Chip8Key(u8),
-    DebugStep
+    Step,
+    TogglePause,
+    ToggleDebug
 } 
 
 
@@ -19,7 +21,7 @@ pub(crate) trait Chip8Frontend{
     /// Keyboard input
     fn get_inputs(&mut self)->Vec<KeyInput>;
     /// Toggle debug mode
-    fn debug_mode(&mut self);
+    fn toggle_debug(&mut self);
     fn start_sound(&mut self);
     fn end_sound(&mut self);
 }
@@ -32,6 +34,22 @@ pub struct RaylibDisplay{
     keymap: HashMap<KeyboardKey,KeyInput>,
     debug_mode: bool
 }
+
+macro_rules! vec2 {
+    ($obj: expr) => {
+        {Vector2{
+            x: $obj.x as f32,
+            y: $obj.y as f32
+        }}
+    };
+    ($a:expr, $b: expr) => {
+        {Vector2{
+            x: $a as f32,
+            y: $b as f32
+        }}
+    }
+}
+
 
 impl RaylibDisplay{
     const WINDOW_WIDTH: i32 = 960;
@@ -59,6 +77,81 @@ impl RaylibDisplay{
     const DEBUG_MEMORY_WINDOW: Rectangle = Rectangle{x: 0.5, y:0.0, width: 0.5, height: 0.5};
     const DEBUG_REGISTER_WINDOW: Rectangle = Rectangle{x: 0.5, y:0.5, width: 0.5, height: 0.5};
     const SOUND_FILE: &'static str = "resources/buzz.ogg";
+
+    fn draw_instructions(memory: &Memory, registers: &Registers, screen_dims: Vector2, handle: &mut raylib::prelude::RaylibDrawHandle) {
+        let window_before = 0;
+        let window_after = 10;
+        let ram_slice = &memory.ram[registers.pc - (window_before * INSTRUCTION_SIZE)..registers.pc + (window_after * INSTRUCTION_SIZE)];
+        let addr_instrs: Vec<(usize, Instruction)> = ram_slice.iter().tuples().enumerate().map(
+            |(i,bytes): (usize,(&u8,&u8))| {
+                (registers.pc - (window_before * INSTRUCTION_SIZE) + i,
+                u16::from_be_bytes([*bytes.0, *bytes.1]).into())}
+        ).collect();
+        let text = addr_instrs.iter().map(|(addr, instr)| {
+            match instr{
+                Instruction::Nop => "".to_string(),
+                _ => format!("0x{:x}\t\t{}", addr, instr)}
+            }
+        ).join(";\n");
+        handle.draw_rectangle_v(times(vec2!(Self::DEBUG_INSTRUCTION_WINDOW), screen_dims),
+            times(vec2!(Self::DEBUG_INSTRUCTION_WINDOW.width, Self::DEBUG_INSTRUCTION_WINDOW.height), screen_dims),
+             Color::WHITE);
+        handle.draw_text(&text,  
+            25,
+            (screen_dims.y as f32 * Self::DEBUG_INSTRUCTION_WINDOW.y) as i32 + 10 ,
+             18, Color::BLACK);
+    }
+
+    
+    fn draw_memory(memory: &Memory, registers: &Registers, screen_dims: Vector2, handle: &mut raylib::prelude::RaylibDrawHandle) {
+        let window_before = 0;
+        let window_after = 8 * 4;
+        // characters by lines
+        let ram_slice = &memory.ram[registers.i - (window_before * INSTRUCTION_SIZE)..registers.i + (window_after * INSTRUCTION_SIZE)];
+        let text = ram_slice.iter().tuples().map(|(b0,b1,b2, b3, b4, b5, b6, b7)| {
+            format!("{:2x} {:2x} {:2x} {:2x} {:2x} {:2x} {:2x} {:2x}", b0, b1, b2, b3, b4, b5, b6, b7)
+            }
+        ).join("\n");
+        handle.draw_rectangle_v(times(vec2!(Self::DEBUG_MEMORY_WINDOW), screen_dims),
+            times(vec2!(Self::DEBUG_MEMORY_WINDOW.width, Self::DEBUG_MEMORY_WINDOW.height), screen_dims),
+            Color::LIGHTGRAY);
+        handle.draw_text(&text,  
+            (screen_dims.x as f32 * Self::DEBUG_MEMORY_WINDOW.x) as i32 + 5,
+            (screen_dims.y as f32 * Self::DEBUG_MEMORY_WINDOW.y) as i32 + 10 ,
+            18, Color::BLACK);
+        
+    }
+    fn draw_registers(registers: &Registers, screen_dims: Vector2, handle: &mut raylib::prelude::RaylibDrawHandle) {
+        let mut register_desc: Vec<_> = registers.vn.iter().enumerate().map(
+            |(index, value)| format!("V{:x}: {:x}", index, value)
+        ).collect();
+        register_desc.push(format!("delay: {}", registers.delay));
+        register_desc.push(format!("sound: {}", registers.sound));
+        register_desc.push(format!("pc: {:x}", registers.pc));
+        register_desc.push(format!("sp: {:x}", registers.sp));
+        register_desc.push(format!("memory: {:x}", registers.i));
+
+        handle.draw_rectangle_v(times(vec2!(Self::DEBUG_REGISTER_WINDOW), screen_dims),
+            times(vec2!(Self::DEBUG_REGISTER_WINDOW.width, Self::DEBUG_REGISTER_WINDOW.height), screen_dims),
+            Color::DARKGRAY);
+
+
+        // itertools::tuples() drops any elements that don't fit in a tuple, 
+        // so we need to make sure that everything lines up
+        while register_desc.len() % 4 != 0{
+            register_desc.push(String::new());
+        }
+        
+        let text = register_desc.iter().tuples().map(
+            |(v1, v2, v3, v4)| format!("{v1}\t{v2}\t{v3}\t{v4}\t")
+        ).join("\n");
+        handle.draw_text(&text,
+        (screen_dims.x as f32 * Self::DEBUG_REGISTER_WINDOW.x) as i32 + 5,
+        (screen_dims.y as f32 * Self::DEBUG_REGISTER_WINDOW.y) as i32 + 10 ,
+            18, Color::WHITE);
+    }
+
+    
 }
 
 impl Default for RaylibDisplay{
@@ -74,7 +167,13 @@ impl Default for RaylibDisplay{
         );
         let raudio = RaylibAudio::init_audio_device();
         let sound = Sound::load_sound(Self::SOUND_FILE).unwrap();
-        keymap.insert(KeyboardKey::KEY_ENTER,KeyInput::DebugStep);
+        keymap.insert(KeyboardKey::KEY_ENTER,KeyInput::Step);
+        keymap.insert(KeyboardKey::KEY_P, KeyInput::TogglePause);
+        <HashMap<KeyboardKey,KeyInput> as Extend<(KeyboardKey, KeyInput)>>::extend(&mut keymap, [
+            (KeyboardKey::KEY_ENTER, KeyInput::Step),
+            (KeyboardKey::KEY_P, KeyInput::TogglePause),
+            (KeyboardKey::KEY_PERIOD, KeyInput::ToggleDebug)
+        ].into_iter());
         Self{
             raylib_handle:rhandle,
             raylib_thread:rthread,
@@ -85,27 +184,13 @@ impl Default for RaylibDisplay{
         }
     }
 }
-
-macro_rules! vec2 {
-    ($obj: expr) => {
-        {Vector2{
-            x: $obj.x as f32,
-            y: $obj.y as f32
-        }}
-    };
-    ($a:expr, $b: expr) => {
-        {Vector2{
-            x: $a as f32,
-            y: $b as f32
-        }}
-    }
-}
     
 fn times(v1: Vector2, v2: Vector2) -> Vector2{
     vec2!(v1.x * v2.x, v1.y * v2.y)
 }
 
 impl Chip8Frontend for RaylibDisplay{
+
     fn update(&mut self, memory: &Memory, registers: &Registers) -> bool {
         let screen_width = self.raylib_handle.get_screen_width();
         let pixel_width: i32 = ((screen_width / crate::DISPLAY_COLUMNS as i32)  as f32 * (
@@ -127,74 +212,15 @@ impl Chip8Frontend for RaylibDisplay{
                 }
             }
             if self.debug_mode {
+                let screen_dims = vec2!(screen_width, screen_height);
                 // Draw instructions 
-                let window_before = 0;
-                let window_after = 10;
-                let ram_slice = &memory.ram[registers.pc - (window_before * INSTRUCTION_SIZE)..registers.pc + (window_after * INSTRUCTION_SIZE)];
-                let addr_instrs: Vec<(usize, Instruction)> = ram_slice.iter().tuples().enumerate().map(
-                    |(i,bytes): (usize,(&u8,&u8))| {
-                        (registers.pc - (window_before * INSTRUCTION_SIZE) + i,
-                        u16::from_be_bytes([*bytes.0, *bytes.1]).into())}
-                ).collect();
-                let text = addr_instrs.iter().map(|(addr, instr)| {
-                    match instr{
-                        Instruction::Nop => "".to_string(),
-                        _ => format!("0x{:x}\t\t{}", addr, instr)}
-                    }
-                ).join(";\n");
-                let screen_dims = vec2!(screen_width, screen_height);
-                handle.draw_rectangle_v(times(vec2!(Self::DEBUG_INSTRUCTION_WINDOW), screen_dims),
-                    times(vec2!(Self::DEBUG_INSTRUCTION_WINDOW.width, Self::DEBUG_INSTRUCTION_WINDOW.height), screen_dims),
-                     Color::WHITE);
-                handle.draw_text(&text,  
-                    25,
-                    (screen_height as f32 * Self::DEBUG_INSTRUCTION_WINDOW.y) as i32 + 10 ,
-                     18, Color::BLACK);
-        
+                Self::draw_instructions(memory, registers, screen_dims, &mut handle);
+                        
                 // Draw memory view
-                let window_before = 0;
-                let window_after = 8 * 4; // characters by lines
-                let ram_slice = &memory.ram[registers.i - (window_before * INSTRUCTION_SIZE)..registers.i + (window_after * INSTRUCTION_SIZE)];
-                let text = ram_slice.iter().tuples().map(|(b0,b1,b2, b3, b4, b5, b6, b7)| {
-                    format!("{:2x} {:2x} {:2x} {:2x} {:2x} {:2x} {:2x} {:2x}", b0, b1, b2, b3, b4, b5, b6, b7)
-                    }
-                ).join("\n");
-                let screen_dims = vec2!(screen_width, screen_height);
-                handle.draw_rectangle_v(times(vec2!(Self::DEBUG_MEMORY_WINDOW), screen_dims),
-                    times(vec2!(Self::DEBUG_MEMORY_WINDOW.width, Self::DEBUG_MEMORY_WINDOW.height), screen_dims),
-                     Color::LIGHTGRAY);
-                handle.draw_text(&text,  
-                    (screen_width as f32 * Self::DEBUG_MEMORY_WINDOW.x) as i32 + 5,
-                    (screen_height as f32 * Self::DEBUG_MEMORY_WINDOW.y) as i32 + 10 ,
-                     18, Color::BLACK);
+                Self::draw_memory(memory, registers, screen_dims, &mut handle);
 
-                let mut register_desc: Vec<_> = registers.vn.iter().enumerate().map(
-                    |(index, value)| format!("V{:x}: {:x}", index, value)
-                ).collect();
-                register_desc.push(format!("delay: {}", registers.delay));
-                register_desc.push(format!("sound: {}", registers.sound));
-                register_desc.push(format!("pc: {:x}", registers.pc));
-                register_desc.push(format!("sp: {:x}", registers.sp));
-                register_desc.push(format!("memory: {:x}", registers.i));
-
-                handle.draw_rectangle_v(times(vec2!(Self::DEBUG_REGISTER_WINDOW), screen_dims),
-                    times(vec2!(Self::DEBUG_REGISTER_WINDOW.width, Self::DEBUG_REGISTER_WINDOW.height), screen_dims),
-                     Color::DARKGRAY);
-
-
-                // itertools::tuples() drops any elements that don't fit in a tuple, 
-                // so we need to make sure that everything lines up
-                while register_desc.len() % 4 != 0{
-                    register_desc.push(String::new());
-                }
-    
-                let text = register_desc.iter().tuples().map(
-                    |(v1, v2, v3, v4)| format!("{v1}\t{v2}\t{v3}\t{v4}\t")
-                ).join("\n");
-                handle.draw_text(&text,
-                (screen_width as f32 * Self::DEBUG_REGISTER_WINDOW.x) as i32 + 5,
-                (screen_height as f32 * Self::DEBUG_REGISTER_WINDOW.y) as i32 + 10 ,
-                    18, Color::WHITE);
+                // Draw register view
+                Self::draw_registers(registers, screen_dims, &mut handle);
                 }
         }
         self.raylib_handle.window_should_close()
@@ -208,8 +234,8 @@ impl Chip8Frontend for RaylibDisplay{
         ).collect_vec()
     }
     
-    fn debug_mode(&mut self) {
-        self.debug_mode = true;
+    fn toggle_debug(&mut self) {
+        self.debug_mode = !self.debug_mode;
     }
     
     fn start_sound(&mut self) {
@@ -220,7 +246,6 @@ impl Chip8Frontend for RaylibDisplay{
         self.raylib_audio.stop_sound(&self.sound)
     }
 }
-
 
 
 /* 

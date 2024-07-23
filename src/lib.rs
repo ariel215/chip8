@@ -1,4 +1,3 @@
-use std::{thread, time::{self, Duration}};
 use ndarray::prelude::*;
 
 type Addr = u16;
@@ -17,13 +16,20 @@ pub struct Emulator{
     memory: Memory,
     registers: Registers,
     frontend: Box<dyn frontend::Chip8Frontend>,
+    mode: EmulatorMode
 }
 
 /// What kind of display to use for the emulator
-pub enum EmulatorMode{
+pub enum DisplayMode{
     Windowed,
     // Todo: add TUI frontend
 }
+
+pub(crate) enum EmulatorMode {
+    Running,
+    Paused, 
+}
+
 
 #[derive(Debug, PartialEq, Eq)]
 // Todo: turn these docs into attributes for a proc macro
