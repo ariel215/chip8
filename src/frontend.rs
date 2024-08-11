@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::{self, Duration}};
 
 use itertools::Itertools;
 use raylib::{self, audio::{RaylibAudio, Sound}, color::Color, consts::KeyboardKey, drawing::RaylibDraw, ffi::Vector2, math::Rectangle, RaylibBuilder, RaylibHandle, RaylibThread};
@@ -32,7 +32,8 @@ pub struct RaylibDisplay{
     raylib_audio: RaylibAudio,
     sound: Sound,
     keymap: HashMap<KeyboardKey,KeyInput>,
-    debug_mode: bool
+    debug_mode: bool,
+    keys_down: Vec<(KeyboardKey,KeyState)>
 }
 
 macro_rules! vec2 {
@@ -50,27 +51,36 @@ macro_rules! vec2 {
     }
 }
 
+enum KeyState {
+    Up,
+    Pressed,
+    HeldSince(time::Instant)
+}
 
 impl RaylibDisplay{
     const WINDOW_WIDTH: i32 = 960;
     const WINDOW_HEIGHT: i32 = 480;
-    const KEYMAP: [(KeyboardKey,u8); 16] = [
-        (KeyboardKey::KEY_ONE, 0x1),
-        (KeyboardKey::KEY_TWO, 0x2),
-        (KeyboardKey::KEY_THREE, 0x3),
-        (KeyboardKey::KEY_FOUR, 0xc),
-        (KeyboardKey::KEY_Q, 0x4),
-        (KeyboardKey::KEY_W, 0x5),
-        (KeyboardKey::KEY_E, 0x6),
-        (KeyboardKey::KEY_R, 0xd),
-        (KeyboardKey::KEY_A, 0x7),
-        (KeyboardKey::KEY_S, 0x8),
-        (KeyboardKey::KEY_D, 0x9),
-        (KeyboardKey::KEY_F, 0xe),
-        (KeyboardKey::KEY_Z, 0xa),
-        (KeyboardKey::KEY_X, 0x0),
-        (KeyboardKey::KEY_C, 0xb),
-        (KeyboardKey::KEY_V, 0xf)
+    const KEYMAP: [(KeyboardKey,KeyInput); 20] = [
+        (KeyboardKey::KEY_ONE, KeyInput::Chip8Key(0x1)),
+        (KeyboardKey::KEY_TWO,  KeyInput::Chip8Key(0x2)),
+        (KeyboardKey::KEY_THREE,KeyInput::Chip8Key( 0x3)),
+        (KeyboardKey::KEY_FOUR, KeyInput::Chip8Key(0xc)),
+        (KeyboardKey::KEY_Q, KeyInput::Chip8Key(0x4)),
+        (KeyboardKey::KEY_W, KeyInput::Chip8Key(0x5)),
+        (KeyboardKey::KEY_E, KeyInput::Chip8Key(0x6)),
+        (KeyboardKey::KEY_R, KeyInput::Chip8Key(0xd)),
+        (KeyboardKey::KEY_A, KeyInput::Chip8Key(0x7)),
+        (KeyboardKey::KEY_S, KeyInput::Chip8Key(0x8)),
+        (KeyboardKey::KEY_D, KeyInput::Chip8Key(0x9)),
+        (KeyboardKey::KEY_F, KeyInput::Chip8Key(0xe)),
+        (KeyboardKey::KEY_Z, KeyInput::Chip8Key(0xa)),
+        (KeyboardKey::KEY_X, KeyInput::Chip8Key(0x0)),
+        (KeyboardKey::KEY_C, KeyInput::Chip8Key(0xb)),
+        (KeyboardKey::KEY_V, KeyInput::Chip8Key(0xf)),
+        (KeyboardKey::KEY_SPACE, KeyInput::TogglePause),
+        (KeyboardKey::KEY_P, KeyInput::TogglePause),
+        (KeyboardKey::KEY_PERIOD, KeyInput::ToggleDebug),
+        (KeyboardKey::KEY_ENTER, KeyInput::Step)
     ];
     const DEBUG_MAIN_WINDOW: Rectangle = Rectangle{x:0.0, y:0.0, width: 0.5, height: 0.5};
     const DEBUG_INSTRUCTION_WINDOW: Rectangle = Rectangle{x:0.0, y:0.5, width: 0.5, height: 0.5};
@@ -162,25 +172,23 @@ impl Default for RaylibDisplay{
             .resizable()
             .title("Chip-8")
             .build();
-        let mut keymap: HashMap<KeyboardKey, KeyInput> = HashMap::from_iter(
-            Self::KEYMAP.iter().copied().map(|(k,v)|(k,KeyInput::Chip8Key(v)))
+        let keymap: HashMap<KeyboardKey, KeyInput> = HashMap::from_iter(
+            Self::KEYMAP.iter().copied()
+        );
+        let keys_down: Vec<(KeyboardKey, KeyState)> = Vec::from_iter(
+            Self::KEYMAP.iter().copied().
+            map(|(key,_)| {(key,KeyState::Up)})
         );
         let raudio = RaylibAudio::init_audio_device();
         let sound = Sound::load_sound(Self::SOUND_FILE).unwrap();
-        keymap.insert(KeyboardKey::KEY_ENTER,KeyInput::Step);
-        keymap.insert(KeyboardKey::KEY_P, KeyInput::TogglePause);
-        <HashMap<KeyboardKey,KeyInput> as Extend<(KeyboardKey, KeyInput)>>::extend(&mut keymap, [
-            (KeyboardKey::KEY_ENTER, KeyInput::Step),
-            (KeyboardKey::KEY_P, KeyInput::TogglePause),
-            (KeyboardKey::KEY_PERIOD, KeyInput::ToggleDebug)
-        ].into_iter());
         Self{
             raylib_handle:rhandle,
             raylib_thread:rthread,
             keymap,
             raylib_audio: raudio,
             sound,
-            debug_mode: false
+            debug_mode: false,
+            keys_down
         }
     }
 }
@@ -200,6 +208,18 @@ impl Chip8Frontend for RaylibDisplay{
         let pixel_height =((screen_height / crate::DISPLAY_ROWS as i32) as f32 * (
             if self.debug_mode {Self::DEBUG_MAIN_WINDOW.height} else {1.0}  
         )) as i32;
+        self.keys_down = self.keys_down.iter().map(
+            |(key,state)| {
+                (*key, match (self.raylib_handle.is_key_down(*key), state){
+                    (true, KeyState::Up) => KeyState::Pressed,
+                    (true, KeyState::Pressed) => {
+                        KeyState::HeldSince(time::Instant::now())
+                    } ,
+                    (true, KeyState::HeldSince(t)) => KeyState::HeldSince(t.clone()),
+                    (false, _ ) => KeyState::Up,     
+                })
+            }
+        ).collect();
         {        
             let mut handle = self.raylib_handle.begin_drawing(&self.raylib_thread);
             handle.clear_background(Color::BLACK);
@@ -227,11 +247,16 @@ impl Chip8Frontend for RaylibDisplay{
     }
     
     fn get_inputs(&mut self) -> Vec<KeyInput> {
-        self.keymap.keys().filter_map(
-            |k| if self.raylib_handle.is_key_down(*k){
-                Some(self.keymap[k])
-            } else {None}
-        ).collect_vec()
+        let delay = Duration::from_millis(250);
+        let now = time::Instant::now();
+        return self.keys_down.iter().filter_map(|(key,state)|{
+            match state {
+                KeyState::HeldSince(t) => {
+                    if now - *t > delay {Some(self.keymap[key])} else {None}},
+                KeyState::Up => None,
+                KeyState::Pressed => Some(self.keymap[key])
+            }
+        }).collect_vec()
     }
     
     fn toggle_debug(&mut self) {
