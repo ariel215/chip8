@@ -92,10 +92,10 @@ impl RaylibDisplay{
         let window_before = 0;
         let window_after = 10;
         let ram_slice = &memory.ram[registers.pc - (window_before * INSTRUCTION_SIZE)..registers.pc + (window_after * INSTRUCTION_SIZE)];
-        let addr_instrs: Vec<(usize, Instruction)> = ram_slice.iter().tuples().enumerate().map(
-            |(i,bytes): (usize,(&u8,&u8))| {
-                (registers.pc - (window_before * INSTRUCTION_SIZE) + i,
-                u16::from_be_bytes([*bytes.0, *bytes.1]).into())}
+        let addr_instrs: Vec<(usize, Instruction)> = ram_slice.iter().enumerate().tuples().map(
+            |((i1,b1),(_i2,b2)): ((usize,&u8),(usize,&u8))| {
+                (registers.pc - (window_before * INSTRUCTION_SIZE) + i1,
+                u16::from_be_bytes([*b1, *b2]).into())}
         ).collect();
         let text = addr_instrs.iter().map(|(addr, instr)| {
             match instr{

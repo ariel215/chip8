@@ -52,7 +52,7 @@ impl Memory{
             let prev = self.display[[x_wrapped, y_wrapped]];
             let new = get_bit(byte, i);
             self.display[[x_wrapped,y_wrapped]] ^= new;
-            collided |= prev & !new;
+            collided |= prev & new;
         }
         collided
     }
@@ -64,8 +64,10 @@ fn test_set_row(){
     let mut memory = Memory::default();
     let collision = memory.set_row(0, 0, 0xff);
     assert!(!collision);
-    let collision = memory.set_row(0,0,0xf);
-    assert!(collision)
+    let collision = memory.set_row(0,0,0xff);
+    assert!(collision);
+    let collision = memory.set_row(0, 0, 0xff);
+    assert!(!collision)
 }
 
 
