@@ -48,7 +48,7 @@ pub enum Instruction{
     /// NOP
     /// 0x0000 or anything that isn't a valid instruction
     Nop,
-    /// JMP imm12
+    /// JP imm12
     /// 0x1NNN
     /// Jump to addr
     Jump(Addr),
@@ -56,27 +56,27 @@ pub enum Instruction{
     /// 0x2NNN
     ///  call function at addr
     Call(Addr),
-    /// SKEI Vx imm8
+    /// SE Vx imm8
     /// 0x3XNN
     /// Skip next instruction if  *reg == imm8
     SkipEqImm(Reg,u8),
-    /// SKNI Vx imm8
+    /// SNE Vx imm8
     /// 0x4xnn
     /// Skip next instruction if *reg != imm8
     SkipNeImm(Reg, u8),
-    /// SKEV Vx Vy
+    /// SE Vx Vy
     /// 0x5XY0
     /// Skip next instruction if *Vx == *Vy
     SkipEqReg(Reg, Reg),
-    /// MOVI Vx imm8
+    /// LD Vx imm8
     /// 0x6XNN
     /// Set *Vx to imm8
     SetImm(Reg, u8),
-    /// ADDI Vx imm8
+    /// ADD Vx imm8
     /// 0x7XNN
     /// *Vx += imm
     AddImm(Reg, u8),
-    /// MOVV Vx Vy 
+    /// LD Vx Vy 
     /// 0x8XY0
     SetReg(Reg, Reg), // Set *Vx to *Vy
     /// OR Vx Vy
@@ -88,16 +88,16 @@ pub enum Instruction{
     /// XOR Vx Vy
     /// 0x8XY3
     XorReg(Reg, Reg), // *Vx ^= Vy
-    /// ADDV Vx Vy
+    /// ADD Vx Vy
     /// 0x8XY4
     AddReg(Reg, Reg), // *Vx += *Vy
-    /// SUBV Vx Vy
+    /// SUB Vx Vy
     /// 0x8XY5
     SubReg(Reg, Reg), // *Vx -= *Vy; set VF to 1 if the subtraction succeds
     /// RSH Vx Vy
     /// 0x8XY6
     Rsh(Reg), // *Vx >>= 1; store least significant bit in VF
-    /// SUBF Vx Vy
+    /// SUBN Vx Vy
     /// 0x8XY7
     SubFrom(Reg, Reg), // Vx = Vy - Vx; set VF to 1 if the subtraction succeeds
     /// LSH Vx Vy
@@ -106,31 +106,31 @@ pub enum Instruction{
     /// SKNV Vx Vy
     /// 0x9XY0
     SkipNeReg(Reg, Reg), // Skip next instruction if Vx != Vy
-    /// MOVM imm12
+    /// LD I imm12
     /// 0xANNN
     SetMemPtr(u16), // Sets the I register to imm
-    /// JOFF imm12
+    /// JP V0 imm12
     /// 0xBNNN
     JumpOffset(u16), // Jump to V0 + imm
     /// RND Vx imm8
     /// 0xCXNN
     Rand(Reg, u8), //Set Vx to rand() & imm
-    /// DRAW Vx Vy imm4
+    /// DRW Vx Vy imm4
     /// 0xDXYN
     /// Draw N-byte sprite at (Vx,Vy) 
     /// Successive bytes are drawn one below the next
     /// Note that the chip8 display is indexed like (column, row)
     Draw(Reg,Reg, u8), 
-    /// SKK Vx
+    /// SKP Vx
     /// 0xEX9E
-    SkipKey(Reg), // Skip next instruction if the key in Vx is pressed
-    /// SNK Vx
+    SkipKeyPressed(Reg), // Skip next instruction if the key in Vx is pressed
+    /// SKNP Vx
     /// 0xEXA1
-    SkipNoKey(Reg), // Skip next instruction if the key in Vx is *not* pressed
-    /// GETD Vx
+    SkipKeyNotPressed(Reg), // Skip next instruction if the key in Vx is *not* pressed
+    /// LD Vx
     /// 0xFX07
     GetDelay(Reg), // Set Vx to the value of the delay timer
-    /// WAIT Vx
+    /// LD Vx, K
     /// 0xFX0A
     WaitForKey(Reg), // Block until key pressed, then store the key pressed in Vx
     /// MOVD Vx
@@ -139,13 +139,13 @@ pub enum Instruction{
     /// MOVS Vx
     /// 0xFX18
     SetSound(Reg), // Set sound timer to *Vx
-    /// ADDM Vx
+    /// ADD I Vx
     /// 0xFX1E
     AddMemPtr(Reg), // *I += *Vx
-    /// MOVC Vx
+    /// LD F Vx
     /// 0xFX29
     SetChar(Reg), // *I = sprites[SPRITE_LEN * *Vx]
-    /// BCD Vx
+    /// LD B Vx
     /// 0xFX33
     BCD(Reg), // Store the binary-coded decimal representation of Vx at I..=I+2
     /// RDMP Vx

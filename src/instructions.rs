@@ -8,6 +8,9 @@ macro_rules! get_arg {
         let __arg_part = $parts.get($index);
         match __arg_part {
             Some(__arg_str) => {
+                let __arg_str = if let Some(__suffix) = __arg_str.strip_prefix("V"){
+                    __suffix
+                } else {__arg_str};
                 if let Ok(__val) = __arg_str.parse() {
                     Ok(__val)
                 } else {Err(crate::errors::ParseError::new(&$parts.join(" "), &format!("Couldn't parse value {}", __arg_str)))}
@@ -26,38 +29,62 @@ impl Instruction{
             "cls" => Instruction::ClearScreen,
             "ret" => Instruction::Ret,
             "nop" => Instruction::Nop,
-            "jmp" => Instruction::Jump(get_arg!(mnemonic_parts, 1)?),
+            "jp" => { 
+                if mnemonic_parts.len() == 1 {Instruction::Jump(get_arg!(mnemonic_parts, 1)?)}
+                else {Instruction::JumpOffset(get_arg!(mnemonic_parts,2)?)}
+            },
             "call" => Instruction::Call(get_arg!(mnemonic_parts, 1)?),
-            "skei" => Instruction::SkipEqImm(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
-            "skni" => Instruction::SkipNeImm(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
-            "skev" => Instruction::SkipEqReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
-            "movi" => Instruction::SetImm(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
-            "addi" => Instruction::AddImm(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
-            "movv" => Instruction::SetReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
+            "se" => { 
+                if mnemonic_parts[2].starts_with('V'){
+                    Instruction::SkipEqReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?)
+                } else {Instruction::SkipEqImm(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?)}
+            },
+            "sne" => { 
+                if mnemonic_parts[2].starts_with('V'){
+                    Instruction::SkipNeReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?)
+                } else {Instruction::SkipNeImm(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?)}
+            },
+            "ld" => {
+                match mnemonic_parts[1] {
+                    "i" => {Instruction::SetMemPtr(get_arg!(mnemonic_parts, 2)?)},
+                    "[i]" => {Instruction::RegDump(get_arg!(mnemonic_parts, 2)?)},
+                    "dt" => {Instruction::SetDelay(get_arg!(mnemonic_parts, 2)?)},
+                    "st" => {Instruction::SetSound(get_arg!(mnemonic_parts, 2)?)},
+                    "f" => {Instruction::SetChar(get_arg!(mnemonic_parts, 2)?)},
+                    "b" => {Instruction::BCD(get_arg!(mnemonic_parts, 2)?)},
+                    _ => {
+                        match mnemonic_parts[2] {
+                            "dt" => {Instruction::GetDelay(get_arg!(mnemonic_parts, 1)?)},
+                            "k" => {Instruction::WaitForKey(get_arg!(mnemonic_parts, 1)?)},
+                            "[i]" => {Instruction::RegLoad(get_arg!(mnemonic_parts, 1)?)},
+                            _ => {
+                                if mnemonic_parts[2].starts_with('V') {
+                                    Instruction::SetReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?)
+                                } else {
+                                    Instruction::SetImm(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            "add" => {
+                if mnemonic_parts[1] == "I" {
+                    Instruction::AddMemPtr(get_arg!(mnemonic_parts, 1)?)}
+                else if mnemonic_parts[2].starts_with('V'){ Instruction::AddReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?)}
+                else {Instruction::AddImm(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?)}
+            },
             "or" => Instruction::OrReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
             "and" => Instruction::AndReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
             "xor" => Instruction::XorReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
-            "addv" => Instruction::AddReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
-            "subv" => Instruction::SubReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
+            "sub" => Instruction::SubReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
             "rsh" => Instruction::Rsh(get_arg!(mnemonic_parts, 1)?),
-            "subf" => Instruction::SubFrom(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
+            "subn" => Instruction::SubFrom(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
             "lsh" => Instruction::Lsh(get_arg!(mnemonic_parts, 1)?),
-            "sknv" => Instruction::SkipNeReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
-            "movm" => Instruction::SetMemPtr(get_arg!(mnemonic_parts, 1)?),
-            "joff" => Instruction::JumpOffset(get_arg!(mnemonic_parts, 1)?),
-            "rnd" | "rand" => Instruction::Rand(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
-            "draw" => Instruction::Draw(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?, get_arg!(mnemonic_parts, 3)?),
-            "skk" => Instruction::SkipKey(get_arg!(mnemonic_parts, 1)?),
-            "snk" => Instruction::SkipNoKey(get_arg!(mnemonic_parts, 1)?),
-            "getd" => Instruction::GetDelay(get_arg!(mnemonic_parts, 1)?),
-            "wait" => Instruction::WaitForKey(get_arg!(mnemonic_parts, 1)?),
-            "movd" => Instruction::SetDelay(get_arg!(mnemonic_parts, 1)?),
-            "movs" => Instruction::SetSound(get_arg!(mnemonic_parts, 1)?),
-            "addm" => Instruction::AddMemPtr(get_arg!(mnemonic_parts, 1)?),
-            "movc" => Instruction::SetChar(get_arg!(mnemonic_parts, 1)?),
-            "bcd" => Instruction::BCD(get_arg!(mnemonic_parts, 1)?),
-            "rdump" | "rdmp" => Instruction::RegDump(get_arg!(mnemonic_parts, 1)?),
-            "rload" => Instruction::RegLoad(get_arg!(mnemonic_parts, 1)?),
+            "rnd" => Instruction::Rand(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?),
+            "drw" => Instruction::Draw(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?, get_arg!(mnemonic_parts, 3)?),
+            "skp" => Instruction::SkipKeyPressed(get_arg!(mnemonic_parts, 1)?),
+            "sknp" => Instruction::SkipKeyNotPressed(get_arg!(mnemonic_parts, 1)?),
             _=> { return Err(ParseError::new(mnemonic, "Unknown instruction"))}
         })
     }
@@ -111,7 +138,7 @@ macro_rules! XNN {
 
 macro_rules! XY {
     ($r1: expr, $r2: expr) => {
-        ($r1 as u16) << 8 | ($r2 << 4) as u16
+        ($r1 as u16) << 8 | (($r2 as u16) << 4)
     };
 }
 
@@ -142,8 +169,8 @@ impl From<Instruction> for u16 {
             Instruction::JumpOffset(imm) => 0xB000 | imm,
             Instruction::Rand(reg,imm ) => 0xC000 | XNN!(reg, imm),
             Instruction::Draw(x,y ,n) => 0xD000 | XY!(x,y) | n as u16,
-            Instruction::SkipKey(reg) => 0xE09E | XY!(reg,0),
-            Instruction::SkipNoKey(reg) => 0xE0A1 | XY!(reg,0),
+            Instruction::SkipKeyPressed(reg) => 0xE09E | XY!(reg,0),
+            Instruction::SkipKeyNotPressed(reg) => 0xE0A1 | XY!(reg,0),
             Instruction::GetDelay(reg) => 0xF007 | XY!(reg,0),
             Instruction::WaitForKey(reg) => 0xF00A | XY!(reg,0),
             Instruction::SetDelay(reg) => 0xF015 | XY!(reg,0),
@@ -163,38 +190,38 @@ impl std::fmt::Display for Instruction {
             Instruction::Nop => write!(f, "NOP"),
             Instruction::ClearScreen => write!(f, "CLS"),
             Instruction::Ret => write!(f, "RET"),
-            Instruction::Jump(v) => write!(f, "JMP {}", v),
-            Instruction::Call(v) => write!(f, "CALL {}", v),
-            Instruction::SkipEqImm(reg, imm) => write!(f, "SKEI {} {}", reg, imm),
-            Instruction::SkipNeImm(reg, imm ) =>  write!(f, "SKNI {} {}", reg, imm),
-            Instruction::SkipEqReg(r1, r2 ) => write!(f, "SKEV {} {}", r1, r2),
-            Instruction::SetImm(reg, imm) => write!(f, "MOVI {reg} {imm}"),
-            Instruction::AddImm(reg, imm) => write!(f, "ADDI {reg} {imm}"),
-            Instruction::SetReg(r1,r2) => write!(f, "MOVV {r1} {r2}"),
-            Instruction::OrReg(r1,r2 ) => write!(f, "OR {r1} {r2}"),
-            Instruction::AndReg(r1,r2 ) => write!(f, "AND {r1} {r2}"),
-            Instruction::XorReg(r1,r2 ) => write!(f, "XOR {r1} {r2}"),
-            Instruction::AddReg(r1,r2 ) => write!(f, "ADDV {r1} {r2}"),
-            Instruction::SubReg(r1,r2 ) => write!(f, "SUBV {r1} {r2}"),
-            Instruction::Rsh(r1 ) => write!(f, "RSH {r1}"),
-            Instruction::SubFrom(r1,r2 ) => write!(f, "SUBF {r1} {r2}"),
-            Instruction::Lsh(r1 ) => write!(f, "LSH {r1}"),
-            Instruction::SkipNeReg(r1,r2 )=> write!(f, "SKNV {r1} {r2}"),
-            Instruction::SetMemPtr(imm) => write!(f, "MOVM {imm}"),
-            Instruction::JumpOffset(imm) => write!(f, "JOFF {imm}"),
-            Instruction::Rand(reg,imm ) => write!(f, "RAND {reg} {imm}"),
-            Instruction::Draw(x,y ,n) => write!(f, "DRAW {x} {y} {n}"),
-            Instruction::SkipKey(reg) => write!(f, "SKK {reg}"),
-            Instruction::SkipNoKey(reg) => write!(f, "SNK {reg}"),
-            Instruction::GetDelay(reg) => write!(f, "GETD {reg}"),
-            Instruction::WaitForKey(reg) => write!(f, "WAIT {reg}"),
-            Instruction::SetDelay(reg) => write!(f, "MOVD {reg}"),
-            Instruction::SetSound(reg) => write!(f, "MOVS {reg}"),
-            Instruction::AddMemPtr(reg) => write!(f, "ADDM {reg}"),
-            Instruction::SetChar(reg) => write!(f, "MOVC {reg}"),
-            Instruction::BCD(reg) => write!(f, "BCD {reg}"),
-            Instruction::RegDump(reg) => write!(f, "RDMP {reg}"),
-            Instruction::RegLoad(reg) => write!(f, "RLOAD {reg}")
+            Instruction::Jump(v) => write!(f, "JMP V{}", v),
+            Instruction::Call(v) => write!(f, "CALL V{}", v),
+            Instruction::SkipEqImm(reg, imm) => write!(f, "SE V{} {}", reg, imm),
+            Instruction::SkipEqReg(r1, r2 ) => write!(f, "SE V{} V{}", r1, r2),
+            Instruction::SkipNeImm(reg, imm ) =>  write!(f, "SNE V{} {}", reg, imm),
+            Instruction::SkipNeReg(r1,r2 )=> write!(f, "SNE V{r1} V{r2}"),
+            Instruction::SetImm(reg, imm) => write!(f, "LD V{reg} {imm}"),
+            Instruction::AddImm(reg, imm) => write!(f, "ADD V{reg} {imm}"),
+            Instruction::AddMemPtr(reg) => write!(f, "ADD I V{reg}"),
+            Instruction::AddReg(r1,r2 ) => write!(f, "ADD V{r1} V{r2}"),
+            Instruction::SetReg(r1,r2) => write!(f, "LD V{r1} V{r2}"),
+            Instruction::OrReg(r1,r2 ) => write!(f, "OR V{r1} V{r2}"),
+            Instruction::AndReg(r1,r2 ) => write!(f, "AND V{r1} V{r2}"),
+            Instruction::XorReg(r1,r2 ) => write!(f, "XOR V{r1} V{r2}"),
+            Instruction::SubReg(r1,r2 ) => write!(f, "SUB V{r1} V{r2}"),
+            Instruction::Rsh(r1 ) => write!(f, "RSH V{r1}"),
+            Instruction::SubFrom(r1,r2 ) => write!(f, "SUBN V{r1} V{r2}"),
+            Instruction::Lsh(r1 ) => write!(f, "LSH V{r1}"),
+            Instruction::SetMemPtr(imm) => write!(f, "LD I {imm}"),
+            Instruction::JumpOffset(imm) => write!(f, "JP V0 {imm}"),
+            Instruction::Rand(reg,imm ) => write!(f, "RND V{reg} {imm}"),
+            Instruction::Draw(x,y ,n) => write!(f, "DRW V{x} V{y} {n}"),
+            Instruction::SkipKeyPressed(reg) => write!(f, "SKP V{reg}"),
+            Instruction::SkipKeyNotPressed(reg) => write!(f, "SKNP V{reg}"),
+            Instruction::GetDelay(reg) => write!(f, "LD V{reg} DT"),
+            Instruction::WaitForKey(reg) => write!(f, "LD V{reg} K"),
+            Instruction::SetDelay(reg) => write!(f, "LD DT V{reg}"),
+            Instruction::SetSound(reg) => write!(f, "LD ST V{reg}"),
+            Instruction::SetChar(reg) => write!(f, "LD F V{reg}"),
+            Instruction::BCD(reg) => write!(f, "LD B V{reg}"),
+            Instruction::RegDump(reg) => write!(f, "LD [I] V{reg}"),
+            Instruction::RegLoad(reg) => write!(f, "LD V{reg} [I]")
         }
     }
 }
@@ -249,8 +276,8 @@ impl From<u16> for Instruction {
             0xE000..=0xEfff => {
                 let lower = NN!(opcode);
                 match lower {
-                    0x9E => Self::SkipKey(X!(opcode)),
-                    0xA1 => Self::SkipNoKey(X!(opcode)),
+                    0x9E => Self::SkipKeyPressed(X!(opcode)),
+                    0xA1 => Self::SkipKeyNotPressed(X!(opcode)),
                     _ => Self::Nop
                 }
             },

@@ -333,10 +333,10 @@ pub fn do_instruction(memory: &mut Memory, registers: &mut Registers){
         },
         Instruction::JumpOffset(imm) => registers.pc = (registers.vn[0] as u16 + imm) as usize,
         Instruction::Rand(reg, imm) => registers.vn[reg as usize] = rand::random::<u8>() & imm,
-        Instruction::SkipKey(reg) => if memory.keys[registers.vn[reg as usize] as usize ] {
+        Instruction::SkipKeyPressed(reg) => if memory.keys[registers.vn[reg as usize] as usize ] {
             registers.pc += INSTRUCTION_SIZE
         },
-        Instruction::SkipNoKey(reg) => if !memory.keys[registers.vn[reg as usize] as usize ] {
+        Instruction::SkipKeyNotPressed(reg) => if !memory.keys[registers.vn[reg as usize] as usize ] {
             registers.pc += INSTRUCTION_SIZE
         },
         Instruction::GetDelay(reg) => registers.vn[reg as usize] = registers.delay,
