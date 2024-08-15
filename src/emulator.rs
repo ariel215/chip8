@@ -351,18 +351,19 @@ fn test_call_ret() {
     let mut memory = Memory::default();
     memory.load_rom(&rom);
     let mut registers = Registers::default();
-    assert_eq!(registers.sp, 0x1ff);
+    assert_eq!(registers.pc, 0x200);
     do_instruction(&mut memory, &mut registers);
     assert_eq!(registers.pc, 0x204);
-    assert_eq!(registers.sp, 0x1fd);
+    assert_eq!(memory.stack.len(), 1);
+    assert_eq!(memory.stack[memory.stack.len()-1],0x200);
     do_instruction(&mut memory, &mut registers);
-    assert_eq!(registers.sp, 0x1ff);
-    assert_eq!(registers.pc, 0x200)
+    assert_eq!(registers.pc, 0x202);
+    assert_eq!(memory.stack.len(),0)
 }
 
 #[test]
 fn test_load_char(){
-    let instrs: Vec<u16> = ["movi 0 1", "movi 1 0", "movi 2 0", "movc 0", "draw 1 2 5"].into_iter().map(
+    let instrs: Vec<u16> = ["ld v0 1", "ld v1 0", "ld v2 0", "ld f 0", "drw 1 2 5"].into_iter().map(
         |s| Instruction::from_mnemonic(s).unwrap().into()
     ).collect();
     let rom: Vec<u8> = instrs.iter().flat_map(|s|s.to_be_bytes()).collect();

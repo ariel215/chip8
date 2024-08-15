@@ -8,7 +8,7 @@ macro_rules! get_arg {
         let __arg_part = $parts.get($index);
         match __arg_part {
             Some(__arg_str) => {
-                let __arg_str = if let Some(__suffix) = __arg_str.strip_prefix("V"){
+                let __arg_str = if let Some(__suffix) = __arg_str.strip_prefix("v"){
                     __suffix
                 } else {__arg_str};
                 if let Ok(__val) = __arg_str.parse() {
@@ -58,7 +58,7 @@ impl Instruction{
                             "k" => {Instruction::WaitForKey(get_arg!(mnemonic_parts, 1)?)},
                             "[i]" => {Instruction::RegLoad(get_arg!(mnemonic_parts, 1)?)},
                             _ => {
-                                if mnemonic_parts[2].starts_with('V') {
+                                if mnemonic_parts[2].starts_with('v') {
                                     Instruction::SetReg(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?)
                                 } else {
                                     Instruction::SetImm(get_arg!(mnemonic_parts, 1)?, get_arg!(mnemonic_parts, 2)?)
