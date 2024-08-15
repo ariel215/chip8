@@ -10,13 +10,10 @@ pub mod errors;
 pub mod instructions;
 pub mod emulator;
 
-
-pub struct Emulator{
-    clock_speed: u64, // Cycles per second,
+pub struct Chip8{
+    pub clock_speed: u64, // Cycles per second,
     memory: Memory,
     registers: Registers,
-    frontend: Box<dyn frontend::Chip8Frontend>,
-    mode: EmulatorMode
 }
 
 /// What kind of display to use for the emulator
@@ -25,10 +22,6 @@ pub enum DisplayMode{
     // Todo: add TUI frontend
 }
 
-pub(crate) enum EmulatorMode {
-    Running,
-    Paused, 
-}
 
 
 #[derive(Debug, PartialEq, Eq)]

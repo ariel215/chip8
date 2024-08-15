@@ -1,6 +1,3 @@
-use frontend::{KeyInput, RaylibDisplay};
-use std::{thread::sleep, time::{Duration, Instant}};
-
 use crate::*;
 
 /////////////////////////////////////
@@ -95,14 +92,12 @@ impl Default for Registers {
 /////////////////////////////
 
 
-impl Emulator{
-    pub fn init(_mode: DisplayMode)->Self{
+impl Chip8{
+    pub fn init()->Self{
         Self{
             clock_speed: 500,
             memory: Memory::default(),
             registers: Registers::default(),
-            frontend: Box::<RaylibDisplay>::default(),
-            mode: EmulatorMode::Paused
         }
     }
 
@@ -111,93 +106,41 @@ impl Emulator{
         self
     }
 
-    pub fn load_rom(&mut self, rom: &[u8])->&mut Self {
+    pub fn load_rom(mut self, rom: &[u8])-> Self {
         self.memory.load_rom(rom);
         self
     }
 
-    pub fn debug(&mut self){
-        self.mode = EmulatorMode::Paused;
-        self.frontend.toggle_debug()
+    pub fn do_instruction(&mut self){
+        if self.registers.key_flag.is_none() {
+            do_instruction(&mut self.memory, &mut self.registers)
+        }
+        
     }
 
-    pub fn run(&mut self){
-        self.mode = EmulatorMode::Running;
-        let cycle_length = Duration::from_millis(1000 / self.clock_speed);
-        let frame_length = Duration::from_millis(1000/60);
-        loop {
-            match self.mode{
-                EmulatorMode::Paused => {
-                for k in self.frontend.get_inputs(){
-                    match k {
-                        KeyInput::Step => {
-                            do_instruction(&mut self.memory, &mut self.registers);
-                            if self.registers.delay > 0{
-                                self.registers.delay -= 1;
-                            }
-                            if self.registers.sound >0 {
-                                self.registers.sound -= 1;
-                            }
-                        },
-                        KeyInput::Chip8Key(val) => self.memory.keys[val as usize] = true,
-                        KeyInput::TogglePause => self.mode = EmulatorMode::Running,
-                        KeyInput::ToggleDebug => {self.frontend.toggle_debug()}
-                    }
-                }
-                if self.frontend.update(&self.memory, &self.registers) {break;}
-                sleep(Duration::from_millis(50));
-            },
-            EmulatorMode::Running => {
-                let mut frame_elapsed = Duration::ZERO;
-                // At the beginning of each frame, we: 
-                // - clear the key buffer
-                // - tick down the delay and sound registers
-                self.memory.keys = [false; 16];
-                if self.registers.delay > 0{
-                    self.registers.delay -= 1;
-                }
-                let sound_playing = self.registers.sound > 0;
-                if sound_playing {
-                    self.registers.sound -= 1;
-                    if self.registers.sound == 0 {
-                        self.frontend.end_sound()
-                    }
-                }
-                while frame_elapsed < frame_length{
-                    let tic = Instant::now();
-                    for k in self.frontend.get_inputs(){
-                        match k {
-                            KeyInput::Chip8Key(key) => {
-                            self.memory.keys[key as usize] = true;
-                            if let Some(dest) = self.registers.key_flag{
-                                self.registers.vn[dest] = key;
-                                self.registers.key_flag = None;
-                            }
-                        },
-                            KeyInput::Step => {},
-                            KeyInput::TogglePause => self.mode = EmulatorMode::Paused,
-                            KeyInput::ToggleDebug => {self.frontend.toggle_debug()}
-                        }
-                    }
-                    if self.registers.key_flag.is_none(){
-                        do_instruction(&mut self.memory, &mut self.registers);
-                    }
-                    let toc = Instant::now();
-                    if toc - tic < cycle_length{
-                        sleep(cycle_length - (toc-tic))
-                    }
-                    frame_elapsed += Instant::now() - tic;
-                }
-                // At the end of each frame, update the screen and toggle 
-                if !sound_playing && self.registers.sound > 0 {
-                    self.frontend.start_sound()
-                }
-                if self.frontend.update(&self.memory, &self.registers){
-                    break;
-                }
-            }
+    pub fn tick_timers(&mut self){
+        if self.registers.delay > 0{
+            self.registers.delay -= 1;
         }
+        if self.registers.sound >0 {
+            self.registers.sound -= 1;
         }
+    }
+
+    pub fn set_key(&mut self, key: u8){
+        self.memory.keys[key as usize] = true;
+        if let Some(dest) = self.registers.key_flag{
+            self.registers.vn[dest] = key;
+            self.registers.key_flag = None;
+        }
+    }
+
+    pub fn clear_keys(&mut self){
+        self.memory.keys = [false; 16]
+    }
+
+    pub fn sound(&self) -> bool {
+        self.registers.sound > 0
     }
 
 }
@@ -239,7 +182,7 @@ fn subtract_with_underflow(a: u8, b:u8) -> (u8, bool){
 pub(crate) const INSTRUCTION_SIZE: usize = 2;
 
 /// Update the state of the emulator according to `instruction`
-pub fn do_instruction(memory: &mut Memory, registers: &mut Registers){
+pub(crate) fn do_instruction(memory: &mut Memory, registers: &mut Registers){
     let instruction = get_instruction(memory, registers);
     match instruction {
         Instruction::Nop => (),

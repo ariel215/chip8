@@ -4,10 +4,9 @@ use itertools::Itertools;
 use raylib::{self, audio::{RaylibAudio, Sound}, color::Color, consts::KeyboardKey, drawing::RaylibDraw, ffi::Vector2, math::Rectangle, RaylibBuilder, RaylibHandle, RaylibThread};
 
 
-use crate::{emulator::INSTRUCTION_SIZE, Instruction, Memory, Registers};
-
+use crate::{emulator::INSTRUCTION_SIZE, Chip8, Instruction};
 #[derive(Clone, Copy)]
-pub(crate) enum KeyInput{
+pub enum KeyInput{
     Chip8Key(u8),
     Step,
     TogglePause,
@@ -15,15 +14,14 @@ pub(crate) enum KeyInput{
 } 
 
 
-pub(crate) trait Chip8Frontend{
+pub trait Chip8Frontend{
     /// Rendering
-    fn update(&mut self, memory: &Memory, registers: &Registers) -> bool;
+    fn update(&mut self, chip8: &crate::Chip8) -> bool;
     /// Keyboard input
     fn get_inputs(&mut self)->Vec<KeyInput>;
     /// Toggle debug mode
     fn toggle_debug(&mut self);
-    fn start_sound(&mut self);
-    fn end_sound(&mut self);
+    fn play_stop_sound(&mut self, play: bool);
 }
 
 pub struct RaylibDisplay{
@@ -31,6 +29,7 @@ pub struct RaylibDisplay{
     raylib_thread: RaylibThread,
     raylib_audio: RaylibAudio,
     sound: Sound,
+    sound_playing: bool,
     keymap: HashMap<KeyboardKey,KeyInput>,
     debug_mode: bool,
     keys_down: Vec<(KeyboardKey,KeyState)>
@@ -88,13 +87,13 @@ impl RaylibDisplay{
     const DEBUG_REGISTER_WINDOW: Rectangle = Rectangle{x: 0.5, y:0.5, width: 0.5, height: 0.5};
     const SOUND_FILE: &'static str = "resources/buzz.ogg";
 
-    fn draw_instructions(memory: &Memory, registers: &Registers, screen_dims: Vector2, handle: &mut raylib::prelude::RaylibDrawHandle) {
+    fn draw_instructions(chip8: &Chip8, screen_dims: Vector2, handle: &mut raylib::prelude::RaylibDrawHandle) {
         let window_before = 0;
         let window_after = 10;
-        let ram_slice = &memory.ram[registers.pc - (window_before * INSTRUCTION_SIZE)..registers.pc + (window_after * INSTRUCTION_SIZE)];
+        let ram_slice = &chip8.memory.ram[&chip8.registers.pc - (window_before * INSTRUCTION_SIZE)..&chip8.registers.pc + (window_after * INSTRUCTION_SIZE)];
         let addr_instrs: Vec<(usize, Instruction)> = ram_slice.iter().enumerate().tuples().map(
             |((i1,b1),(_i2,b2)): ((usize,&u8),(usize,&u8))| {
-                (registers.pc - (window_before * INSTRUCTION_SIZE) + i1,
+                (&chip8.registers.pc - (window_before * INSTRUCTION_SIZE) + i1,
                 u16::from_be_bytes([*b1, *b2]).into())}
         ).collect();
         let text = addr_instrs.iter().map(|(addr, instr)| {
@@ -113,11 +112,11 @@ impl RaylibDisplay{
     }
 
     
-    fn draw_memory(memory: &Memory, registers: &Registers, screen_dims: Vector2, handle: &mut raylib::prelude::RaylibDrawHandle) {
+    fn draw_memory(chip8: &Chip8, screen_dims: Vector2, handle: &mut raylib::prelude::RaylibDrawHandle) {
         let window_before = 0;
         let window_after = 8 * 4;
         // characters by lines
-        let ram_slice = &memory.ram[registers.i - (window_before * INSTRUCTION_SIZE)..registers.i + (window_after * INSTRUCTION_SIZE)];
+        let ram_slice = &chip8.memory.ram[chip8.registers.i - (window_before * INSTRUCTION_SIZE)..chip8.registers.i + (window_after * INSTRUCTION_SIZE)];
         let text = ram_slice.iter().tuples().map(|(b0,b1,b2, b3, b4, b5, b6, b7)| {
             format!("{:2x} {:2x} {:2x} {:2x} {:2x} {:2x} {:2x} {:2x}", b0, b1, b2, b3, b4, b5, b6, b7)
             }
@@ -131,7 +130,8 @@ impl RaylibDisplay{
             18, Color::BLACK);
         
     }
-    fn draw_registers(registers: &Registers, screen_dims: Vector2, handle: &mut raylib::prelude::RaylibDrawHandle) {
+    fn draw_registers(chip8: &Chip8, screen_dims: Vector2, handle: &mut raylib::prelude::RaylibDrawHandle) {
+        let registers = &chip8.registers;
         let mut register_desc: Vec<_> = registers.vn.iter().enumerate().map(
             |(index, value)| format!("V{:x}: {:x}", index, value)
         ).collect();
@@ -161,11 +161,7 @@ impl RaylibDisplay{
             18, Color::WHITE);
     }
 
-    
-}
-
-impl Default for RaylibDisplay{
-    fn default() -> Self {
+    pub fn new() -> Self {
         let (rhandle, rthread) = RaylibBuilder::default()
             .width(Self::WINDOW_WIDTH)
             .height(Self::WINDOW_HEIGHT)
@@ -187,6 +183,7 @@ impl Default for RaylibDisplay{
             keymap,
             raylib_audio: raudio,
             sound,
+            sound_playing: false,
             debug_mode: false,
             keys_down
         }
@@ -199,7 +196,7 @@ fn times(v1: Vector2, v2: Vector2) -> Vector2{
 
 impl Chip8Frontend for RaylibDisplay{
 
-    fn update(&mut self, memory: &Memory, registers: &Registers) -> bool {
+    fn update(&mut self, chip8: &Chip8) -> bool {
         let screen_width = self.raylib_handle.get_screen_width();
         let pixel_width: i32 = ((screen_width / crate::DISPLAY_COLUMNS as i32)  as f32 * (
             if self.debug_mode {Self::DEBUG_MAIN_WINDOW.width } else {1.0}
@@ -225,7 +222,7 @@ impl Chip8Frontend for RaylibDisplay{
             handle.clear_background(Color::BLACK);
             for x in 0..crate::DISPLAY_COLUMNS{
                 for y in 0..crate::DISPLAY_ROWS{
-                    let pixel = memory.display[[x,y]];
+                    let pixel = chip8.memory.display[[x,y]];
                     if pixel {
                         handle.draw_rectangle(x as i32 * pixel_width, y as i32 * pixel_height, pixel_width, pixel_height, Color::WHITE)
                     }
@@ -234,13 +231,13 @@ impl Chip8Frontend for RaylibDisplay{
             if self.debug_mode {
                 let screen_dims = vec2!(screen_width, screen_height);
                 // Draw instructions 
-                Self::draw_instructions(memory, registers, screen_dims, &mut handle);
+                Self::draw_instructions(chip8, screen_dims, &mut handle);
                         
                 // Draw memory view
-                Self::draw_memory(memory, registers, screen_dims, &mut handle);
+                Self::draw_memory(chip8, screen_dims, &mut handle);
 
                 // Draw register view
-                Self::draw_registers(registers, screen_dims, &mut handle);
+                Self::draw_registers(chip8, screen_dims, &mut handle);
                 }
         }
         self.raylib_handle.window_should_close()
@@ -263,13 +260,16 @@ impl Chip8Frontend for RaylibDisplay{
         self.debug_mode = !self.debug_mode;
     }
     
-    fn start_sound(&mut self) {
-        self.raylib_audio.play_sound(&self.sound)
+    fn play_stop_sound(&mut self, play: bool) {
+        if self.sound_playing & !play {
+            self.raylib_audio.stop_sound(&self.sound);
+        }
+        if !self.sound_playing & play {
+            self.raylib_audio.play_sound(&self.sound);
+        }
+        self.sound_playing = play
     }
-    
-    fn end_sound(&mut self) {
-        self.raylib_audio.stop_sound(&self.sound)
-    }
+
 }
 
 
