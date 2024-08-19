@@ -21,15 +21,11 @@ pub trait Chip8Frontend{
     fn get_inputs(&mut self)->Vec<KeyInput>;
     /// Toggle debug mode
     fn toggle_debug(&mut self);
-    fn play_stop_sound(&mut self, play: bool);
 }
 
 pub struct RaylibDisplay{
     raylib_handle: RaylibHandle,
     raylib_thread: RaylibThread,
-    raylib_audio: RaylibAudio,
-    sound: Sound,
-    sound_playing: bool,
     keymap: HashMap<KeyboardKey,KeyInput>,
     debug_mode: bool,
     keys_down: Vec<(KeyboardKey,KeyState)>
@@ -175,15 +171,10 @@ impl RaylibDisplay{
             Self::KEYMAP.iter().copied().
             map(|(key,_)| {(key,KeyState::Up)})
         );
-        let raudio = RaylibAudio::init_audio_device();
-        let sound = Sound::load_sound(Self::SOUND_FILE).unwrap();
         Self{
             raylib_handle:rhandle,
             raylib_thread:rthread,
             keymap,
-            raylib_audio: raudio,
-            sound,
-            sound_playing: false,
             debug_mode: false,
             keys_down
         }
@@ -260,16 +251,6 @@ impl Chip8Frontend for RaylibDisplay{
         self.debug_mode = !self.debug_mode;
     }
     
-    fn play_stop_sound(&mut self, play: bool) {
-        if self.sound_playing & !play {
-            self.raylib_audio.stop_sound(&self.sound);
-        }
-        if !self.sound_playing & play {
-            self.raylib_audio.play_sound(&self.sound);
-        }
-        self.sound_playing = play
-    }
-
 }
 
 

@@ -4,6 +4,7 @@ use chip8::{frontend::KeyInput, Chip8};
 
 use clap::Parser;
 use clio::*;
+use raylib::audio::RaylibAudio;
 
 #[derive(Parser)]
 struct Args{
@@ -43,6 +44,10 @@ impl Chip8Driver{
     }
 
     pub fn run(&mut self){
+
+        let audio = RaylibAudio::init_audio_device().unwrap();
+        let mut sound = audio.new_sound("resources/buzz.ogg").unwrap();
+    
         let cycle_length = Duration::from_millis(1000 / self.chip8.clock_speed);
         let frame_length = Duration::from_millis(1000/60);
         loop {
@@ -93,7 +98,12 @@ impl Chip8Driver{
                     frame_elapsed += Instant::now() - tic;
                 }
                 // At the end of each frame, update the screen and toggle 
-                self.frontend.play_stop_sound(self.chip8.sound());
+                if sound.is_playing() & !self.chip8.sound(){
+                    sound.stop();
+                }
+                if !sound.is_playing() & self.chip8.sound(){
+                    sound.play()
+                }
                 if self.frontend.update(&self.chip8){
                     break;
                 }
