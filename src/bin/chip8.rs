@@ -58,16 +58,24 @@ impl Chip8Driver{
                         KeyInput::Step => {
                             self.chip8.do_instruction();
                             self.chip8.tick_timers();
+                            if self.frontend.update(&self.chip8, true) {return}
+
                         },
                         KeyInput::Chip8Key(val) => {
                             self.chip8.clear_keys();
                             self.chip8.set_key(val)
                         }
                         KeyInput::TogglePause => self.mode = EmulatorMode::Running,
-                        KeyInput::ToggleDebug => {self.frontend.toggle_debug()}
+                        KeyInput::ToggleDebug => {self.frontend.toggle_debug()},
+                        KeyInput::Click(position) => {
+                            self.frontend.on_mouse_click(position)
+                        },
+                        KeyInput::Scroll(position,amount ) => {
+                            self.frontend.on_mouse_scroll(position, amount);
+                        }
                     }
                 }
-                if self.frontend.update(&self.chip8) {break;}
+                if self.frontend.update(&self.chip8, false) {return;}
                 sleep(Duration::from_millis(50));
             },
             EmulatorMode::Running => {
@@ -87,7 +95,8 @@ impl Chip8Driver{
                         },
                             KeyInput::Step => {},
                             KeyInput::TogglePause => self.mode = EmulatorMode::Paused,
-                            KeyInput::ToggleDebug => {self.frontend.toggle_debug()}
+                            KeyInput::ToggleDebug => {self.frontend.toggle_debug()},
+                            _ => {}, 
                         }
                     }
                     self.chip8.do_instruction();
@@ -104,7 +113,7 @@ impl Chip8Driver{
                 if !sound.is_playing() & self.chip8.sound(){
                     sound.play()
                 }
-                if self.frontend.update(&self.chip8){
+                if self.frontend.update(&self.chip8, true){
                     break;
                 }
             }

@@ -143,6 +143,10 @@ impl Chip8{
         self.registers.sound > 0
     }
 
+    pub fn pc(&self) -> usize {
+        self.registers.pc
+    }
+
 }
 
 /// Get the current instruction from memory

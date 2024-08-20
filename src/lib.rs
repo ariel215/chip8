@@ -149,10 +149,12 @@ pub enum Instruction{
     RegLoad(Reg), // Fill registers V0..Vx from memory, starting at I
 }
 
+pub const MEMORY_SIZE: usize = 4096;
+
 #[derive(Debug)]
 pub struct Memory{
     /// Random access memory
-    ram: [u8;4096],
+    ram: [u8;MEMORY_SIZE],
     /// Graphic display
     display: Display,
     /// Key array
