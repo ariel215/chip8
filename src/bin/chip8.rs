@@ -99,7 +99,12 @@ impl Chip8Driver{
                             _ => {}, 
                         }
                     }
-                    self.chip8.do_instruction();
+                    if matches!(self.mode, EmulatorMode::Running){
+                        self.chip8.do_instruction();
+                    }
+                    if self.frontend.is_breakpoint(self.chip8.pc()){
+                        self.mode = EmulatorMode::Paused;
+                    }
                     let toc = Instant::now();
                     if toc - tic < cycle_length{
                         sleep(cycle_length - (toc-tic))

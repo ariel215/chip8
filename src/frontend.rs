@@ -24,6 +24,7 @@ pub trait Chip8Frontend{
     fn get_inputs(&mut self)->Vec<KeyInput>;
     /// Toggle debug mode
     fn toggle_debug(&mut self);
+    fn is_breakpoint(&self, addr: usize) -> bool;
 
     fn on_mouse_scroll(&mut self, position: Vector2, direction: isize);
 
@@ -274,7 +275,6 @@ impl Chip8Frontend for RaylibDisplay{
                 if let Some(addr)  = self.instruction_window.get_addr(position.y){
                     let prev = *self.breakpoints.get(addr).unwrap();
                     self.breakpoints.set(addr, !prev);
-                    dbg!(format!("{:x}",addr));
                 }
             } //  instruction view
             (false, true) => {}, //  memory view
@@ -296,6 +296,10 @@ impl Chip8Frontend for RaylibDisplay{
         
     }
     
+    fn is_breakpoint(&self, addr: usize) -> bool {
+        return *self.breakpoints.get(addr).as_deref().unwrap_or(&false)
+    }
+    
 }
 
 
@@ -310,6 +314,18 @@ struct InstructionWindow{
 impl InstructionWindow{
     const BASE_ADDR: usize = 0x200;
     const LINE_SPACING: i32 = 20;
+    const MARGIN_TOP: f32 = 15.0;
+    const MARGIN_BOTTOM: f32 = 25.0;
+    const MARGIN_LEFT: f32 = 50.0; 
+    
+    fn line_height(&self) -> f32{
+        (self.position.height - (Self::MARGIN_TOP + Self::MARGIN_BOTTOM)) / self.len as f32
+    }
+
+    fn grid_line(&self, lineno: usize) -> f32 {
+        self.position.y + Self::MARGIN_TOP + (lineno as f32) * self.line_height()
+    } 
+
 
     pub(crate) fn draw<T: RaylibDraw>(&self, font: &Font, breakpoints: &BitArr!(for MEMORY_SIZE), chip8: &Chip8, handle: &mut T) {
         let ram_slice = &chip8.memory.ram[self.start_addr..self.start_addr + (self.len * INSTRUCTION_SIZE)];
@@ -320,17 +336,24 @@ impl InstructionWindow{
             }
         ).collect();
         let text = addr_instrs.iter().map(|(addr, instr)| {
-                if *addr == chip8.pc() {format!("\t>>0x{:x}\t\t{}", addr, instr)} else{ format!("0x{:x}\t\t{}", addr, instr)}
+                (addr, if *addr == chip8.pc() {format!("\t>>0x{:x}\t\t{}", addr, instr)} else{ format!("0x{:x}\t\t{}", addr, instr)})
             }
-        ).join(";\n");
+        );
 
         handle.draw_rectangle_v(vec2!(self.position.x, self.position.y),
             vec2!(self.position.width, self.position.height),
              Color::WHITE);
-        handle.draw_text_ex(font,
-            &text,  
-            vec2!(25,self.position.y + 10.0),
-             32.0, 1.0, Color::BLACK);
+        for (i,(addr, line)) in text.enumerate() {
+            if *breakpoints.get(*addr).as_deref().unwrap_or(&false){
+                handle.draw_circle((self.line_height() / 2.0) as i32, (self.grid_line(i) + self.line_height() / 2.0) as i32, 
+                self.line_height() / 4.0, Color::RED);
+            }
+            handle.draw_text_ex(font,
+                &line,
+                vec2!(Self::MARGIN_LEFT, self.grid_line(i)),
+                 32.0, 1.0, Color::BLACK);
+        };
+        
     }
 
     pub(crate) fn scroll(&mut self, direction: isize){
@@ -341,11 +364,12 @@ impl InstructionWindow{
     }
 
     pub(crate) fn get_addr(&self, y: f32) -> Option<usize>{
-        let offset = y - self.position.y;
+        let offset = y - self.position.y - Self::MARGIN_TOP;
         if offset.is_sign_negative() {
             None
         } else {
-            let line_no = (offset / self.len as f32).trunc() as usize;
+            let line_height = (self.position.height - (Self::MARGIN_TOP + Self::MARGIN_BOTTOM)) / self.len as f32;
+            let line_no = (offset / line_height).trunc() as usize;
             Some((line_no * INSTRUCTION_SIZE) + self.start_addr)
         }
     }
