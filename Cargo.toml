@@ -2,8 +2,19 @@
 name = "chip8"
 version = "0.1.0"
 edition = "2021"
+default-run = "chip8"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "chip8"
+
+[[bin]]
+name = "assembler"
+
+
+[lib]
+crate-type = ["rlib","cdylib"]
 
 [dependencies]
 bitvec = "1.0.1"
@@ -13,3 +24,8 @@ itertools = "0.13.0"
 ndarray = "0.15.6"
 rand = "0.8.5"
 raylib = "5.0.1"
+wasm-bindgen = {version="0.2.93", optional = true}
+js-sys = {version = "0.3.70", optional = true}
+
+[features]
+wasm = ["dep:wasm-bindgen", "dep:js-sys"]

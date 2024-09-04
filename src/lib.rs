@@ -1,28 +1,39 @@
 use ndarray::prelude::*;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 type Addr = u16;
 type Reg = u8;
 type Display = Array2<bool>;
 
 
-pub mod frontend;
+pub(crate) mod emulator;
+pub(crate) mod frontend;
 pub mod errors;
 pub mod instructions;
-pub mod emulator;
+pub mod driver;
 
-pub struct Chip8{
-    pub clock_speed: u64, // Cycles per second,
+
+#[derive(Clone, Copy)]
+#[cfg_attr(feature="wasm", wasm_bindgen)]
+pub enum EmulatorMode {
+    Running,
+    Paused, 
+}
+
+#[cfg_attr(feature="wasm", wasm_bindgen)]
+pub struct Chip8Driver{
+    chip8: Chip8,   
+    frontend: Box<dyn frontend::Chip8Frontend>,
+    mode: EmulatorMode
+}
+
+
+pub(crate) struct Chip8{
+    clock_speed: u64, // Cycles per second,
     memory: Memory,
     registers: Registers,
 }
-
-/// What kind of display to use for the emulator
-pub enum DisplayMode{
-    Windowed,
-    // Todo: add TUI frontend
-}
-
-
 
 #[derive(Debug, PartialEq, Eq)]
 // Todo: turn these docs into attributes for a proc macro
@@ -149,10 +160,10 @@ pub enum Instruction{
     RegLoad(Reg), // Fill registers V0..Vx from memory, starting at I
 }
 
-pub const MEMORY_SIZE: usize = 4096;
+pub(crate) const MEMORY_SIZE: usize = 4096;
 
 #[derive(Debug)]
-pub struct Memory{
+pub(crate) struct Memory{
     /// Random access memory
     ram: [u8;MEMORY_SIZE],
     /// Graphic display
@@ -164,7 +175,7 @@ pub struct Memory{
 }
 
 #[derive(Debug)]
-pub struct Registers{
+pub(crate) struct Registers{
     /// General purpose registers
     vn: [u8;16], 
     /// Delay register - counts down at 60 hz

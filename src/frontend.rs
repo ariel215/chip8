@@ -34,8 +34,9 @@ pub trait Chip8Frontend{
 pub struct RaylibDisplay{
     raylib_handle: RaylibHandle,
     raylib_thread: RaylibThread,
+    raylib_audio: RaylibAudio,
     debug_mode: bool,
-    font: Font,
+    font: Option<Font>,
     keymap: HashMap<KeyboardKey,KeyInput>,
     keys_down: Vec<(KeyboardKey,KeyState)>,
     instruction_window: InstructionWindow,
@@ -57,6 +58,7 @@ macro_rules! vec2 {
     }
 }
 
+#[derive(Clone, Copy)]
 enum KeyState {
     Up,
     Pressed,
@@ -92,11 +94,12 @@ impl RaylibDisplay{
     const DEBUG_INSTRUCTION_WINDOW: Rectangle = Rectangle{x:0.0, y:0.5, width: 0.5, height: 0.5};
     const DEBUG_MEMORY_WINDOW: Rectangle = Rectangle{x: 0.5, y:0.0, width: 0.5, height: 0.5};
     const DEBUG_REGISTER_WINDOW: Rectangle = Rectangle{x: 0.5, y:0.5, width: 0.5, height: 0.5};
-    const SOUND_FILE: &'static str = "resources/buzz.ogg";
+    pub const SOUND_FILE: &'static[u8] = include_bytes!("..\\resources\\buzz.ogg");
+    pub const FONT_FILE: &'static [u8] = include_bytes!("..\\resources\\fonts\\VT323\\VT323-Regular.ttf");
 
 
     
-    fn draw_memory(chip8: &Chip8, screen_dims: Vector2, handle: &mut raylib::prelude::RaylibDrawHandle) {
+    fn draw_memory(font: &Font, chip8: &Chip8, screen_dims: Vector2, handle: &mut raylib::prelude::RaylibDrawHandle, ) {
         let window_before = 0;
         let window_after = 8 * 4;
         // characters by lines
@@ -108,10 +111,11 @@ impl RaylibDisplay{
         handle.draw_rectangle_v(times(vec2!(Self::DEBUG_MEMORY_WINDOW), screen_dims),
             times(vec2!(Self::DEBUG_MEMORY_WINDOW.width, Self::DEBUG_MEMORY_WINDOW.height), screen_dims),
             Color::LIGHTGRAY);
-        handle.draw_text(&text,  
-            (screen_dims.x as f32 * Self::DEBUG_MEMORY_WINDOW.x) as i32 + 5,
-            (screen_dims.y as f32 * Self::DEBUG_MEMORY_WINDOW.y) as i32 + 10 ,
-            18, Color::BLACK);
+        handle.draw_text_ex(font, 
+            &text,  
+            vec2!((screen_dims.x as f32 * Self::DEBUG_MEMORY_WINDOW.x) as i32 + 5,
+            (screen_dims.y as f32 * Self::DEBUG_MEMORY_WINDOW.y) as i32 + 10 ),
+            18.0, 1.0, Color::BLACK);
         
     }
     fn draw_registers(chip8: &Chip8, screen_dims: Vector2, handle: &mut raylib::prelude::RaylibDrawHandle) {
@@ -170,17 +174,25 @@ impl RaylibDisplay{
                 height: Self::WINDOW_HEIGHT as f32 * Self::DEBUG_INSTRUCTION_WINDOW.height 
             }
         };
-        let font = rhandle.load_font(&rthread, "resources/fonts/VT323/VT323-Regular.ttf").unwrap();
+        let raudio = RaylibAudio::init_audio_device().unwrap();
+        let font = rhandle.load_font_from_memory(
+            &rthread, "ttf", Self::FONT_FILE, 18, None).unwrap();
         Self{
             raylib_handle:rhandle,
             raylib_thread:rthread,
-            font,
+            raylib_audio:raudio,
             keymap,
+            font: Some(font),
             debug_mode: false,
             keys_down,
             instruction_window,
             breakpoints: BitArray::ZERO
         }
+    }
+
+    pub fn load_sound<'a>(&'a mut self)-> Sound<'a> {
+        let sound = self.raylib_audio.new_wave_from_memory("ogg", Self::SOUND_FILE).unwrap();
+        self.raylib_audio.new_sound_from_wave(&sound).unwrap()
     }
 }
     
@@ -206,7 +218,7 @@ impl Chip8Frontend for RaylibDisplay{
                     (true, KeyState::Pressed) => {
                         KeyState::HeldSince(time::Instant::now())
                     } ,
-                    (true, KeyState::HeldSince(t)) => KeyState::HeldSince(t.clone()),
+                    (true, held_since) => *held_since,
                     (false, _ ) => KeyState::Up,     
                 })
             }
@@ -229,9 +241,9 @@ impl Chip8Frontend for RaylibDisplay{
                 if show_current_instruction{
                     self.instruction_window.start_addr = max(chip8.pc()-(3 * INSTRUCTION_SIZE), InstructionWindow::BASE_ADDR);
                 }
-                self.instruction_window.draw(&self.font, &self.breakpoints, chip8, &mut handle);
+                self.instruction_window.draw(&self.font.as_ref().unwrap(), &self.breakpoints, chip8, &mut handle);
                 // Draw memory view
-                Self::draw_memory(chip8, screen_dims, &mut handle);
+                Self::draw_memory(&self.font.as_ref().unwrap(), chip8, screen_dims, &mut handle);
 
                 // Draw register view
                 Self::draw_registers(chip8, screen_dims, &mut handle);

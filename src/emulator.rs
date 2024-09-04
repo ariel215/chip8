@@ -93,22 +93,23 @@ impl Default for Registers {
 
 
 impl Chip8{
-    pub fn init()->Self{
+    pub const DEFAULT_SPEED: u64 = 500;
+
+
+    pub fn init(speed: Option<u64>)->Self{
         Self{
-            clock_speed: 500,
+            clock_speed: speed.unwrap_or(Self::DEFAULT_SPEED),
             memory: Memory::default(),
             registers: Registers::default(),
         }
     }
 
-    pub fn clock_speed(mut self, speed: u64) -> Self{
+    pub fn clock_speed(&mut self, speed: u64){
         self.clock_speed = speed;
-        self
     }
 
-    pub fn load_rom(mut self, rom: &[u8])-> Self {
+    pub fn load_rom(&mut self, rom: &[u8]) {
         self.memory.load_rom(rom);
-        self
     }
 
     pub fn do_instruction(&mut self){
