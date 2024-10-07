@@ -9,6 +9,7 @@ edition = "2021"
 bitvec = "1.0.1"
 clap = { version = "4.5.9", features = ["derive"] }
 clio = { version = "0.3.5", features = ["clap-parse"] }
+chip8-macros = {path = "./chip8-macros" }
 itertools = "0.13.0"
 ndarray = "0.15.6"
 rand = "0.8.5"

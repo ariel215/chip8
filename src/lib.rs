@@ -1,5 +1,4 @@
 use ndarray::prelude::*;
-
 type Addr = u16;
 type Reg = u8;
 type Display = Array2<bool>;
