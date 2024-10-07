@@ -3,6 +3,22 @@ use crate::*;
 /////////////////////////////////////
 /// Memory
 /////////////////////////////////////
+#[cfg(target_arch = "wasm32")]
+use js_sys::Math;
+
+#[cfg(target_arch = "wasm32")]
+macro_rules! rand {
+    () => {
+        (Math.random() * u8::MAX).floor() as u8;
+    };
+}
+
+macro_rules! rand {
+    () => {
+        rand::random::<u8>()
+    };
+}
+
 
 #[inline]
 fn get_bit(char: u8, index: usize) -> bool{
@@ -280,7 +296,7 @@ pub(crate) fn do_instruction(memory: &mut Memory, registers: &mut Registers){
              registers.vn[r1 as usize] <<= 1;
         },
         Instruction::JumpOffset(imm) => registers.pc = (registers.vn[0] as u16 + imm) as usize,
-        Instruction::Rand(reg, imm) => registers.vn[reg as usize] = rand::random::<u8>() & imm,
+        Instruction::Rand(reg, imm) => registers.vn[reg as usize] = rand!() & imm,
         Instruction::SkipKeyPressed(reg) => if memory.keys[registers.vn[reg as usize] as usize ] {
             registers.pc += INSTRUCTION_SIZE
         },

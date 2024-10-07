@@ -1,5 +1,6 @@
 use ndarray::prelude::*;
-#[cfg(feature = "wasm")]
+
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
 type Addr = u16;
@@ -9,27 +10,28 @@ type Display = Array2<bool>;
 
 pub(crate) mod emulator;
 pub(crate) mod frontend;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub mod driver;
+
 pub mod errors;
 pub mod instructions;
-pub mod driver;
 
 
 #[derive(Clone, Copy)]
-#[cfg_attr(feature="wasm", wasm_bindgen)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 pub enum EmulatorMode {
     Running,
     Paused, 
 }
-
-#[cfg_attr(feature="wasm", wasm_bindgen)]
 pub struct Chip8Driver{
     chip8: Chip8,   
     frontend: Box<dyn frontend::Chip8Frontend>,
     mode: EmulatorMode
 }
 
-
-pub(crate) struct Chip8{
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
+pub struct Chip8{
     clock_speed: u64, // Cycles per second,
     memory: Memory,
     registers: Registers,

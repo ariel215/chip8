@@ -1,21 +1,33 @@
-use std::{cmp::max, collections::HashMap, time::{self, Duration}};
+use std::cmp::max;
+use std::ops::Range;
 
-use bitvec::{array::BitArray, bitarr, BitArr};
-use itertools::Itertools;
-use raylib::{self, audio::{RaylibAudio, Sound}, color::Color, consts::KeyboardKey, drawing::RaylibDraw, ffi::Vector2, math::Rectangle, text::Font, RaylibBuilder, RaylibHandle, RaylibThread};
+use bitvec::BitArr;
+use wasm_bindgen::{JsCast, JsValue};
+//#[cfg(target_arch="wasm32")]
+use web_sys::{self, HtmlElement};
+use web_sys::Document;
 
+use crate::emulator::INSTRUCTION_SIZE;
+use crate::MEMORY_SIZE;
 
-use crate::{emulator::INSTRUCTION_SIZE, Chip8, Instruction, MEMORY_SIZE};
+pub use self::raylib::RaylibDisplay;
+
 #[derive(Clone, Copy)]
 pub enum KeyInput{
     Chip8Key(u8),
     Step,
     TogglePause,
     ToggleDebug,
-    Click(Vector2),
-    Scroll(Vector2, isize)
+    Click(Vector),
+    Scroll(Vector, isize)
 } 
 
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct Vector{
+    x: f32,
+    y: f32
+}
 
 pub trait Chip8Frontend{
     /// Rendering
@@ -26,20 +38,123 @@ pub trait Chip8Frontend{
     fn toggle_debug(&mut self);
     fn is_breakpoint(&self, addr: usize) -> bool;
 
-    fn on_mouse_scroll(&mut self, position: Vector2, direction: isize);
+    fn on_mouse_scroll(&mut self, position: Vector, direction: isize);
 
-    fn on_mouse_click(&mut self, position: Vector2);
+    fn on_mouse_click(&mut self, position: Vector);
 }
+
+
+struct InstructionWindow{
+    start_addr: usize,
+    len: usize,
+}
+
+impl InstructionWindow {
+    const BASE_ADDR: usize = 0x200;
+
+    pub(crate) fn scroll(&mut self, direction: isize){
+        match self.start_addr.checked_add_signed(direction){
+            Some(addr) => self.start_addr = addr,
+            None => self.start_addr = 0
+        }
+    }
+
+    pub fn focus(&mut self, addr: usize){
+        self.start_addr =  max(addr-(3 * INSTRUCTION_SIZE), InstructionWindow::BASE_ADDR);
+    }
+
+    pub(crate) fn range(&self) -> Range<usize> {
+        self.start_addr..(self.start_addr+self.len * INSTRUCTION_SIZE)
+    }
+}
+
+pub struct WebDisplay{
+    instruction_window: InstructionWindow,
+    debug: bool,
+    breakpoints: BitArr!(for MEMORY_SIZE)
+}
+
+impl WebDisplay{
+    fn draw_screen(&mut self, chip8: &crate::Chip8){
+        todo!()
+    }
+
+    fn draw_memory(&mut self, chip8: &crate::Chip8){
+        todo!();
+    }
+
+    fn draw_instructions(&mut self, chip8: &crate::Chip8, show_current_instruction: bool){
+        if show_current_instruction {
+            self.instruction_window.focus(chip8.pc());
+        }
+        
+    }
+
+    fn draw_registers(&self, chip8: &crate::Chip8){
+        todo!()
+    }
+
+}
+
+
+impl Chip8Frontend for WebDisplay{
+    fn update(&mut self, chip8: &crate::Chip8, show_current_instruction: bool) -> bool {
+        self.draw_screen(chip8);
+        if self.debug {
+            self.draw_memory(chip8);
+            self.draw_instructions(chip8, show_current_instruction);
+            self.draw_registers(chip8)
+        }
+        false
+    }
+    
+    fn get_inputs(&mut self)->Vec<KeyInput> {
+        todo!()
+    }
+    
+    fn toggle_debug(&mut self) {
+        self.debug = !self.debug
+    }
+
+    fn is_breakpoint(&self, addr: usize) -> bool {
+        return *self.breakpoints.get(addr).as_deref().unwrap_or(&false)
+    }
+
+    
+    fn on_mouse_scroll(&mut self, position: Vector, direction: isize) {
+        todo!()
+    }
+    
+    fn on_mouse_click(&mut self, position: Vector) {
+        todo!()
+    }
+    
+}
+
+mod raylib{
+    use std::{cmp::max, collections::HashMap, ops::Range, time::{self, Duration}};
+
+    use bitvec::{array::BitArray, BitArr};
+    use itertools::Itertools;
+    use ::raylib::{self, audio::{RaylibAudio, Sound}, color::Color, consts::KeyboardKey, drawing::RaylibDraw, ffi::Vector2, math::Rectangle, text::Font, RaylibBuilder, RaylibHandle, RaylibThread};
+    use crate::{emulator::INSTRUCTION_SIZE, Chip8, Instruction, MEMORY_SIZE};
+    use super::{InstructionWindow, KeyInput};
+
+
+    impl From<Vector2> for super::Vector {
+        fn from(value: Vector2) -> Self {
+            Self { x: value.x, y: value.y }
+        }
+    }
 
 pub struct RaylibDisplay{
     raylib_handle: RaylibHandle,
     raylib_thread: RaylibThread,
-    raylib_audio: RaylibAudio,
     debug_mode: bool,
     font: Option<Font>,
     keymap: HashMap<KeyboardKey,KeyInput>,
     keys_down: Vec<(KeyboardKey,KeyState)>,
-    instruction_window: InstructionWindow,
+    instruction_window: RaylibInstructionWindow,
     breakpoints: BitArr!(for MEMORY_SIZE)
 }
 
@@ -163,10 +278,12 @@ impl RaylibDisplay{
             Self::KEYMAP.iter().copied().
             map(|(key,_)| {(key,KeyState::Up)})
         );
-        rhandle.set_text_line_spacing(InstructionWindow::LINE_SPACING);
-        let instruction_window = InstructionWindow{
-            start_addr: InstructionWindow::BASE_ADDR,
-            len: 8,
+        rhandle.set_text_line_spacing(RaylibInstructionWindow::LINE_SPACING);
+        let instruction_window = RaylibInstructionWindow{
+            window: super::InstructionWindow{
+                start_addr: super::InstructionWindow::BASE_ADDR,
+                len: 8,
+            },
             position: Rectangle { 
                 x: 0.0,  
                 y: Self::WINDOW_HEIGHT as f32 * Self::DEBUG_INSTRUCTION_WINDOW.y,
@@ -180,7 +297,6 @@ impl RaylibDisplay{
         Self{
             raylib_handle:rhandle,
             raylib_thread:rthread,
-            raylib_audio:raudio,
             keymap,
             font: Some(font),
             debug_mode: false,
@@ -190,17 +306,13 @@ impl RaylibDisplay{
         }
     }
 
-    pub fn load_sound<'a>(&'a mut self)-> Sound<'a> {
-        let sound = self.raylib_audio.new_wave_from_memory("ogg", Self::SOUND_FILE).unwrap();
-        self.raylib_audio.new_sound_from_wave(&sound).unwrap()
-    }
 }
     
 fn times(v1: Vector2, v2: Vector2) -> Vector2{
     vec2!(v1.x * v2.x, v1.y * v2.y)
 }
 
-impl Chip8Frontend for RaylibDisplay{
+impl super::Chip8Frontend for RaylibDisplay{
 
     fn update(&mut self, chip8: &Chip8, show_current_instruction: bool) -> bool {
         let screen_width = self.raylib_handle.get_screen_width();
@@ -239,7 +351,7 @@ impl Chip8Frontend for RaylibDisplay{
                 // Draw instructions
                 self.instruction_window.refresh_position(screen_dims);
                 if show_current_instruction{
-                    self.instruction_window.start_addr = max(chip8.pc()-(3 * INSTRUCTION_SIZE), InstructionWindow::BASE_ADDR);
+                    self.instruction_window.window.focus(chip8.pc());
                 }
                 self.instruction_window.draw(&self.font.as_ref().unwrap(), &self.breakpoints, chip8, &mut handle);
                 // Draw memory view
@@ -264,12 +376,12 @@ impl Chip8Frontend for RaylibDisplay{
             }
         }).collect_vec();
         if self.raylib_handle.is_mouse_button_pressed(raylib::ffi::MouseButton::MOUSE_BUTTON_LEFT) {
-            inputs.push(KeyInput::Click(vec2!(self.raylib_handle.get_mouse_x(), self.raylib_handle.get_mouse_y())));
+            inputs.push(KeyInput::Click(vec2!(self.raylib_handle.get_mouse_x() as f32, self.raylib_handle.get_mouse_y() as f32).into()));
         }
         let mouse_wheel = self.raylib_handle.get_mouse_wheel_move().round() as isize;
         if  mouse_wheel != 0 {
             // negative is down, but everywhere else negative is up, so we invert the scroll amount to match
-            inputs.push(KeyInput::Scroll(vec2!(self.raylib_handle.get_mouse_x(), self.raylib_handle.get_mouse_y()), -mouse_wheel))
+            inputs.push(KeyInput::Scroll(vec2!(self.raylib_handle.get_mouse_x(), self.raylib_handle.get_mouse_y()).into(), -mouse_wheel))
         }
         inputs
     }
@@ -278,7 +390,7 @@ impl Chip8Frontend for RaylibDisplay{
         self.debug_mode = !self.debug_mode;
     }
 
-    fn on_mouse_click(&mut self, position: Vector2) {
+    fn on_mouse_click(&mut self, position: super::Vector) {
         let screen_dims = vec2!(self.raylib_handle.get_screen_width(), self.raylib_handle.get_screen_height());
         match (((position.x / screen_dims.x) < 0.5), ((position.y / screen_dims.y ) < 0.5)) {
             (true, true) => { // chip8 window
@@ -294,13 +406,13 @@ impl Chip8Frontend for RaylibDisplay{
         }
     }
 
-    fn on_mouse_scroll(&mut self, position: Vector2, direction: isize) {
+    fn on_mouse_scroll(&mut self, position: super::Vector, direction: isize) {
         let screen_dims = vec2!(self.raylib_handle.get_screen_width(), self.raylib_handle.get_screen_height());
         match (((position.x / screen_dims.x) < 0.5), ((position.y / screen_dims.y ) < 0.5)) {
             (true, true) => { // chip8 window
                 },
             (true, false) => {
-                self.instruction_window.scroll(direction * (INSTRUCTION_SIZE as isize));
+                self.instruction_window.window.scroll(direction * (INSTRUCTION_SIZE as isize));
             } //  instruction view
             (false, true) => {}, //  memory view
             (false, false) => {}, // register view
@@ -315,23 +427,22 @@ impl Chip8Frontend for RaylibDisplay{
 }
 
 
-struct InstructionWindow{
-    start_addr: usize,
-    len: usize,
+
+struct RaylibInstructionWindow{
+    window: super::InstructionWindow,
     position: Rectangle
 }
 
 
 
-impl InstructionWindow{
-    const BASE_ADDR: usize = 0x200;
+impl RaylibInstructionWindow{
     const LINE_SPACING: i32 = 20;
     const MARGIN_TOP: f32 = 15.0;
     const MARGIN_BOTTOM: f32 = 25.0;
     const MARGIN_LEFT: f32 = 50.0; 
     
     fn line_height(&self) -> f32{
-        (self.position.height - (Self::MARGIN_TOP + Self::MARGIN_BOTTOM)) / self.len as f32
+        (self.position.height - (Self::MARGIN_TOP + Self::MARGIN_BOTTOM)) / self.window.len as f32
     }
 
     fn grid_line(&self, lineno: usize) -> f32 {
@@ -340,10 +451,11 @@ impl InstructionWindow{
 
 
     pub(crate) fn draw<T: RaylibDraw>(&self, font: &Font, breakpoints: &BitArr!(for MEMORY_SIZE), chip8: &Chip8, handle: &mut T) {
-        let ram_slice = &chip8.memory.ram[self.start_addr..self.start_addr + (self.len * INSTRUCTION_SIZE)];
+        let start_addr = self.window.start_addr;
+        let ram_slice = &chip8.memory.ram[self.window.range()];
         let addr_instrs: Vec<(usize, Instruction)> = ram_slice.iter().enumerate().tuples().map(
             |((i1,b1),(_i2,b2)): ((usize,&u8),(usize,&u8))| {
-                (self.start_addr + i1,
+                (start_addr + i1,
                 u16::from_be_bytes([*b1, *b2]).into())
             }
         ).collect();
@@ -368,21 +480,14 @@ impl InstructionWindow{
         
     }
 
-    pub(crate) fn scroll(&mut self, direction: isize){
-        match self.start_addr.checked_add_signed(direction){
-            Some(addr) => self.start_addr = addr,
-            None => self.start_addr = 0
-        }
-    }
-
     pub(crate) fn get_addr(&self, y: f32) -> Option<usize>{
         let offset = y - self.position.y - Self::MARGIN_TOP;
         if offset.is_sign_negative() {
             None
         } else {
-            let line_height = (self.position.height - (Self::MARGIN_TOP + Self::MARGIN_BOTTOM)) / self.len as f32;
+            let line_height = (self.position.height - (Self::MARGIN_TOP + Self::MARGIN_BOTTOM)) / self.window.len as f32;
             let line_no = (offset / line_height).trunc() as usize;
-            Some((line_no * INSTRUCTION_SIZE) + self.start_addr)
+            Some((line_no * INSTRUCTION_SIZE) + self.window.start_addr)
         }
     }
     
@@ -399,7 +504,7 @@ impl InstructionWindow{
 
 }
 
-
+}
 /* 
 |----------------------|----------------------|
 |                      |    Memory            |  

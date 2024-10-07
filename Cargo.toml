@@ -22,10 +22,16 @@ clap = { version = "4.5.9", features = ["derive"] }
 clio = { version = "0.3.5", features = ["clap-parse"] }
 itertools = "0.13.0"
 ndarray = "0.15.6"
-rand = "0.8.5"
+rand = {version = "0.8.5"}
+getrandom = { version = "0.2.15", features = ["js"] }
+wasm-bindgen = {version="0.2.93"}
+js-sys = {version = "0.3.70"}
+web-sys = {version = "0.3.70", features = [
+    "Window",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "Node",
+]}
 raylib = "5.0.1"
-wasm-bindgen = {version="0.2.93", optional = true}
-js-sys = {version = "0.3.70", optional = true}
 
-[features]
-wasm = ["dep:wasm-bindgen", "dep:js-sys"]
