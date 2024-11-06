@@ -9,10 +9,6 @@ default-run = "chip8"
 [[bin]]
 name = "chip8"
 
-[[bin]]
-name = "assembler"
-
-
 [lib]
 crate-type = ["rlib","cdylib"]
 

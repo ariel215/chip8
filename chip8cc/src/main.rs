@@ -1,11 +1,11 @@
 use std::io::{Read, Write};
 use std::result::Result;
 
-use chip8::Instruction;
+use chip8::*;
+use chip8cc::parse_program;
 use clap::Parser;
 use clio::*;
 use itertools::{self, Itertools};
-
 
 #[derive(Parser)]
 struct Args{
@@ -15,10 +15,6 @@ struct Args{
     disassemble: bool
 }
 
-struct ParsingError{
-    error: chip8::errors::ParseError,
-    line_number: usize
-}
 
 fn main(){
     let args = Args::parse();
@@ -63,14 +59,12 @@ fn assemble(input: ClioPath, output: ClioPath){
         }
         match to_binary(&text) {
             Ok(bytes) => {
-                let bytes: Vec<_> = bytes.into_iter().flat_map(u16::to_be_bytes)
-                .collect();
                 let mut output = output.create().expect(&format!("Could not create file {}", output_name));
                 output.write_all(&bytes).expect(&format!("Could not write to {}", output_name));
             },
             Err(error) => {
-                eprintln!("Error in assembly file {}:{}", input_name, error.line_number+1);
-                eprintln!("Could not parse '{}' : {}", error.error.mnemonic, error.error.message);
+                let error = error.with_path(&input_name);
+                eprintln!("{}", error)
             }
         }
     } else {
@@ -78,22 +72,14 @@ fn assemble(input: ClioPath, output: ClioPath){
     }
 }
 
-fn to_binary(text: &str) -> Result<Vec<u16>, ParsingError>{
-    let mut bytes: Vec<u16> = Vec::new();
-    for (line_number, line) in text.lines().enumerate(){
-        let mnemonics = line.split(';');
-        for mnemonic in mnemonics {
-            if mnemonic.is_empty() {continue;}
-            match Instruction::from_mnemonic(mnemonic.trim()){
-                Ok(i) => {bytes.push(i.into())},
-                Err(error) => {
-                    return Err(ParsingError{
-                    error,
-                    line_number
-                })}
-            }
+fn to_binary(text: &str) -> Result<Vec<u8>, chip8cc::labels::Error>{
+    match parse_program(text){
+        Ok(program) => {
+            let bytes: Vec<u8> = program.compile();
+            Ok(bytes)}
+        Err(err) => {
+            Err(err)
         }
     }
-    Ok(bytes)
 }
 

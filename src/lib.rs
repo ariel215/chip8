@@ -12,7 +12,7 @@ pub(crate) mod frontend;
 pub mod errors;
 pub mod instructions;
 pub mod driver;
-
+pub const INSTRUCTION_SIZE: usize = emulator::INSTRUCTION_SIZE;
 
 #[derive(Clone, Copy)]
 #[cfg_attr(feature="wasm", wasm_bindgen)]
@@ -35,7 +35,7 @@ pub(crate) struct Chip8{
     registers: Registers,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 // Todo: turn these docs into attributes for a proc macro
 // ideally could derive: instruction->mnemonic, mnemonic-> instruction,
 // instruction -> u16, u16 -> instruction
@@ -131,16 +131,16 @@ pub enum Instruction{
     /// SKNP Vx
     /// 0xEXA1
     SkipKeyNotPressed(Reg), // Skip next instruction if the key in Vx is *not* pressed
-    /// LD Vx
+    /// LD DT Vx
     /// 0xFX07
     GetDelay(Reg), // Set Vx to the value of the delay timer
     /// LD Vx, K
     /// 0xFX0A
     WaitForKey(Reg), // Block until key pressed, then store the key pressed in Vx
-    /// MOVD Vx
+    /// LD DT Vx 
     /// 0xFX15
     SetDelay(Reg), // Set delay timer to *Vx
-    /// MOVS Vx
+    /// LD ST Vx
     /// 0xFX18
     SetSound(Reg), // Set sound timer to *Vx
     /// ADD I Vx
@@ -152,10 +152,10 @@ pub enum Instruction{
     /// LD B Vx
     /// 0xFX33
     BCD(Reg), // Store the binary-coded decimal representation of Vx at I..=I+2
-    /// RDMP Vx
+    /// LD [I] VX
     /// 0xFX55
     RegDump(Reg), // Store registers V0..Vx in memory, starting at I
-    /// RLOAD Vx
+    /// LD VX [I]
     /// 0xFX55
     RegLoad(Reg), // Fill registers V0..Vx from memory, starting at I
 }

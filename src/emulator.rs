@@ -184,7 +184,7 @@ fn subtract_with_underflow(a: u8, b:u8) -> (u8, bool){
     }
 }
 
-pub(crate) const INSTRUCTION_SIZE: usize = 2;
+pub const INSTRUCTION_SIZE: usize = 2;
 
 /// Update the state of the emulator according to `instruction`
 pub(crate) fn do_instruction(memory: &mut Memory, registers: &mut Registers){
