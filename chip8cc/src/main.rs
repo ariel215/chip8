@@ -12,7 +12,9 @@ struct Args{
     input: ClioPath,
     output: ClioPath,
     #[arg(short, long,)]
-    disassemble: bool
+    disassemble: bool,
+    #[arg(short,long)]
+    assemble: bool
 }
 
 

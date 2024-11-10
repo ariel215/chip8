@@ -1,28 +1,39 @@
 //! Grammar for chip8 assembly with labels 
-WHITESPACE=_{WHITE_SPACE}
-
+WHITESPACE=_{!NEWLINE~WHITE_SPACE}
 decimal = {ASCII_DIGIT+}
 hex = @{"0x" ~ ASCII_HEX_DIGIT+}
 number = @{#hex = hex | #decimal = decimal}
 
 register = @{^"V"~ASCII_HEX_DIGIT}
-label = @{
-    (!":"~ANY)+ ~":"
+label_name= @{(!":"~!WHITE_SPACE~ANY)+}
+label = {
+    #name=label_name~":"
 }
 
-addr = {#fixed=number | #label=(!":"~ASCII)+}
+addr = {#fixed=number | #label=label_name}
+
+ldchar = {^"f"~register}
+bcd = {^"b"~register}
+ldmem = {^"i"~number}
+setdelay = {^"dt"~register}
+getdelay = {register ~ ^"dt"}
+setsound = {^"st" ~ register}
+regdmp = {^"[i]" ~ register}
+regload = {register ~ ^"[i]"}
+setreg = {register ~ register}
+setimm = {register ~ number}
 
 load_args = {
-      register ~ register 
-    | #setchar=(^"f"~register) 
-    | #bcd=(^"b"~register) 
-    | #mem=(^"i"~number)
-    | #setdelay=(^"dt"~register)
-    | #getdelay=(register~^"dt")
-    | #setsound = (^"st"~register)
-    | #getkey = (register~^"k")
-    | #regdmp = (^"[I]"~register)
-    | #regload = (register~^"[I]")
+    ldchar 
+    | bcd 
+    | ldmem 
+    | setdelay
+    | getdelay
+    | setsound 
+    | regdmp 
+    | regload 
+    | setreg 
+    | setimm
 }
 
 cls = {^"cls"}
@@ -47,9 +58,9 @@ lsh = {^"lsh"~register}
 skp = {^"skp"~register}
 sknp = {^"sknp"~register}
 
-instruction = {  cls | ret | nop | jpoff | jump | se | sne | load 
+instruction = {  (cls | ret | nop | jpoff | jump | se | sne | load 
                 |add | sub | or | and | xor | rsh | lsh | subn
-                | rnd | drw | skp | sknp 
+                | rnd | drw | skp | sknp)
 }
-line = {instruction | label }
-file = _{SOI ~ NEWLINE* ~ (line~(";"?)~NEWLINE)+ ~ NEWLINE*~EOI}
+line = {(label | (instruction~(";"?)) )~NEWLINE }
+file = _{SOI ~ line+ ~ EOI?}

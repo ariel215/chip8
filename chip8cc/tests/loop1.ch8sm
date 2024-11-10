@@ -1,0 +1,9 @@
+start:
+ld v0 1
+ld v1 10
+loop:
+add v0 1
+ske v0 v1
+jmp loop
+end:
+jmp end
