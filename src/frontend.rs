@@ -2,15 +2,9 @@ use std::cmp::max;
 use std::ops::Range;
 
 use bitvec::BitArr;
-use wasm_bindgen::{JsCast, JsValue};
-//#[cfg(target_arch="wasm32")]
-use web_sys::{self, HtmlElement};
-use web_sys::Document;
 
 use crate::emulator::INSTRUCTION_SIZE;
 use crate::MEMORY_SIZE;
-
-pub use self::raylib::RaylibDisplay;
 
 #[derive(Clone, Copy)]
 pub enum KeyInput{
@@ -30,7 +24,8 @@ pub struct Vector{
 }
 
 pub trait Chip8Frontend{
-    /// Rendering
+    fn new()-> Self;
+    /// Rendering and sound
     fn update(&mut self, chip8: &crate::Chip8, show_current_instruction: bool) -> bool;
     /// Keyboard input
     fn get_inputs(&mut self)->Vec<KeyInput>;
@@ -68,77 +63,14 @@ impl InstructionWindow {
     }
 }
 
-pub struct WebDisplay{
-    instruction_window: InstructionWindow,
-    debug: bool,
-    breakpoints: BitArr!(for MEMORY_SIZE)
-}
-
-impl WebDisplay{
-    fn draw_screen(&mut self, chip8: &crate::Chip8){
-        todo!()
-    }
-
-    fn draw_memory(&mut self, chip8: &crate::Chip8){
-        todo!();
-    }
-
-    fn draw_instructions(&mut self, chip8: &crate::Chip8, show_current_instruction: bool){
-        if show_current_instruction {
-            self.instruction_window.focus(chip8.pc());
-        }
-        
-    }
-
-    fn draw_registers(&self, chip8: &crate::Chip8){
-        todo!()
-    }
-
-}
-
-
-impl Chip8Frontend for WebDisplay{
-    fn update(&mut self, chip8: &crate::Chip8, show_current_instruction: bool) -> bool {
-        self.draw_screen(chip8);
-        if self.debug {
-            self.draw_memory(chip8);
-            self.draw_instructions(chip8, show_current_instruction);
-            self.draw_registers(chip8)
-        }
-        false
-    }
-    
-    fn get_inputs(&mut self)->Vec<KeyInput> {
-        todo!()
-    }
-    
-    fn toggle_debug(&mut self) {
-        self.debug = !self.debug
-    }
-
-    fn is_breakpoint(&self, addr: usize) -> bool {
-        return *self.breakpoints.get(addr).as_deref().unwrap_or(&false)
-    }
-
-    
-    fn on_mouse_scroll(&mut self, position: Vector, direction: isize) {
-        todo!()
-    }
-    
-    fn on_mouse_click(&mut self, position: Vector) {
-        todo!()
-    }
-    
-}
-
-mod raylib{
-    use std::{cmp::max, collections::HashMap, ops::Range, time::{self, Duration}};
+pub mod raylib{
+    use std::{collections::HashMap, sync::LazyLock, time::{self, Duration}};
 
     use bitvec::{array::BitArray, BitArr};
     use itertools::Itertools;
     use ::raylib::{self, audio::{RaylibAudio, Sound}, color::Color, consts::KeyboardKey, drawing::RaylibDraw, ffi::Vector2, math::Rectangle, text::Font, RaylibBuilder, RaylibHandle, RaylibThread};
     use crate::{emulator::INSTRUCTION_SIZE, Chip8, Instruction, MEMORY_SIZE};
-    use super::{InstructionWindow, KeyInput};
+    use super::KeyInput;
 
 
     impl From<Vector2> for super::Vector {
@@ -150,6 +82,7 @@ mod raylib{
 pub struct RaylibDisplay{
     raylib_handle: RaylibHandle,
     raylib_thread: RaylibThread,
+    raylib_sound: Sound<'static>,
     debug_mode: bool,
     font: Option<Font>,
     keymap: HashMap<KeyboardKey,KeyInput>,
@@ -209,10 +142,16 @@ impl RaylibDisplay{
     const DEBUG_INSTRUCTION_WINDOW: Rectangle = Rectangle{x:0.0, y:0.5, width: 0.5, height: 0.5};
     const DEBUG_MEMORY_WINDOW: Rectangle = Rectangle{x: 0.5, y:0.0, width: 0.5, height: 0.5};
     const DEBUG_REGISTER_WINDOW: Rectangle = Rectangle{x: 0.5, y:0.5, width: 0.5, height: 0.5};
+    
+    #[cfg(target_family="unix")]
+    pub const SOUND_FILE: &'static[u8] = include_bytes!("../resources/buzz.ogg");
+    #[cfg(target_family="unix")]
+    pub const FONT_FILE: &'static [u8] = include_bytes!("../resources/fonts/VT323/VT323-Regular.ttf");
+
+    #[cfg(target_family="windows")]
     pub const SOUND_FILE: &'static[u8] = include_bytes!("..\\resources\\buzz.ogg");
-    pub const FONT_FILE: &'static [u8] = include_bytes!("..\\resources\\fonts\\VT323\\VT323-Regular.ttf");
-
-
+    #[cfg(target_family="windows")]
+    pub const FONT_FILE: &'static [u8] = include_bytes!("..\\resources\\fonts\\VT323\\VT323-Regular.ttf");    
     
     fn draw_memory(font: &Font, chip8: &Chip8, screen_dims: Vector2, handle: &mut raylib::prelude::RaylibDrawHandle, ) {
         let window_before = 0;
@@ -264,14 +203,23 @@ impl RaylibDisplay{
             18, Color::WHITE);
     }
 
-    pub fn new() -> Self {
+
+}
+    
+fn times(v1: Vector2, v2: Vector2) -> Vector2{
+    vec2!(v1.x * v2.x, v1.y * v2.y)
+}
+
+impl super::Chip8Frontend for RaylibDisplay{
+    fn new() -> Self {
         let (mut rhandle, rthread) = RaylibBuilder::default()
             .width(Self::WINDOW_WIDTH)
             .height(Self::WINDOW_HEIGHT)
             .resizable()
             .title("Chip-8")
             .build();
-        let keymap: HashMap<KeyboardKey, KeyInput> = HashMap::from_iter(
+
+            let keymap: HashMap<KeyboardKey, KeyInput> = HashMap::from_iter(
             Self::KEYMAP.iter().copied()
         );
         let keys_down: Vec<(KeyboardKey, KeyState)> = Vec::from_iter(
@@ -291,12 +239,16 @@ impl RaylibDisplay{
                 height: Self::WINDOW_HEIGHT as f32 * Self::DEBUG_INSTRUCTION_WINDOW.height 
             }
         };
-        let raudio = RaylibAudio::init_audio_device().unwrap();
+        static AUDIO: LazyLock<RaylibAudio> = LazyLock::new(|| RaylibAudio::init_audio_device().unwrap());
+        let wave = AUDIO.new_wave_from_memory("ogg",RaylibDisplay::SOUND_FILE).unwrap();
+        let sound = AUDIO.new_sound_from_wave(&wave).unwrap();
+
         let font = rhandle.load_font_from_memory(
             &rthread, "ttf", Self::FONT_FILE, 18, None).unwrap();
         Self{
             raylib_handle:rhandle,
             raylib_thread:rthread,
+            raylib_sound: sound,
             keymap,
             font: Some(font),
             debug_mode: false,
@@ -306,13 +258,6 @@ impl RaylibDisplay{
         }
     }
 
-}
-    
-fn times(v1: Vector2, v2: Vector2) -> Vector2{
-    vec2!(v1.x * v2.x, v1.y * v2.y)
-}
-
-impl super::Chip8Frontend for RaylibDisplay{
 
     fn update(&mut self, chip8: &Chip8, show_current_instruction: bool) -> bool {
         let screen_width = self.raylib_handle.get_screen_width();
@@ -361,6 +306,13 @@ impl super::Chip8Frontend for RaylibDisplay{
                 Self::draw_registers(chip8, screen_dims, &mut handle);
                 }
         }
+        if self.raylib_sound.is_playing() & !chip8.sound(){
+            self.raylib_sound.stop();
+        }
+        if !self.raylib_sound.is_playing() & chip8.sound(){
+            self.raylib_sound.play();
+        }
+
         self.raylib_handle.window_should_close()
     }
     

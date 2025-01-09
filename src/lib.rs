@@ -1,3 +1,4 @@
+use frontend::Chip8Frontend;
 use ndarray::prelude::*;
 
 #[cfg(target_arch = "wasm32")]
@@ -24,9 +25,10 @@ pub enum EmulatorMode {
     Running,
     Paused, 
 }
-pub struct Chip8Driver{
+
+pub struct Chip8Driver<Frontend: Chip8Frontend = frontend::raylib::RaylibDisplay>{
     chip8: Chip8,   
-    frontend: Box<dyn frontend::Chip8Frontend>,
+    frontend: Frontend,
     mode: EmulatorMode
 }
 

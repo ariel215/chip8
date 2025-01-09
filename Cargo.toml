@@ -25,13 +25,5 @@ ndarray = "0.15.6"
 rand = {version = "0.8.5"}
 getrandom = { version = "0.2.15", features = ["js"] }
 wasm-bindgen = {version="0.2.93"}
-js-sys = {version = "0.3.70"}
-web-sys = {version = "0.3.70", features = [
-    "Window",
-    "Document",
-    "Element",
-    "HtmlElement",
-    "Node",
-]}
 raylib = "5.0.1"
 
