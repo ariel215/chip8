@@ -1,10 +1,7 @@
 use std::cmp::max;
 use std::ops::Range;
 
-use bitvec::BitArr;
-
 use crate::emulator::INSTRUCTION_SIZE;
-use crate::MEMORY_SIZE;
 
 #[derive(Clone, Copy)]
 pub enum KeyInput{
@@ -13,7 +10,7 @@ pub enum KeyInput{
     TogglePause,
     ToggleDebug,
     Click(Vector),
-    Scroll(Vector, isize)
+    Scroll(Vector, isize),
 } 
 
 #[derive(Clone, Copy)]
@@ -24,7 +21,6 @@ pub struct Vector{
 }
 
 pub trait Chip8Frontend{
-    fn new()-> Self;
     /// Rendering and sound
     fn update(&mut self, chip8: &crate::Chip8, show_current_instruction: bool) -> bool;
     /// Keyboard input
@@ -136,7 +132,7 @@ impl RaylibDisplay{
         (KeyboardKey::KEY_SPACE, KeyInput::TogglePause),
         (KeyboardKey::KEY_P, KeyInput::TogglePause),
         (KeyboardKey::KEY_PERIOD, KeyInput::ToggleDebug),
-        (KeyboardKey::KEY_ENTER, KeyInput::Step)
+        (KeyboardKey::KEY_ENTER, KeyInput::Step),
     ];
     const DEBUG_MAIN_WINDOW: Rectangle = Rectangle{x:0.0, y:0.0, width: 0.5, height: 0.5};
     const DEBUG_INSTRUCTION_WINDOW: Rectangle = Rectangle{x:0.0, y:0.5, width: 0.5, height: 0.5};
@@ -203,15 +199,7 @@ impl RaylibDisplay{
             18, Color::WHITE);
     }
 
-
-}
-    
-fn times(v1: Vector2, v2: Vector2) -> Vector2{
-    vec2!(v1.x * v2.x, v1.y * v2.y)
-}
-
-impl super::Chip8Frontend for RaylibDisplay{
-    fn new() -> Self {
+    pub fn new() -> Self {
         let (mut rhandle, rthread) = RaylibBuilder::default()
             .width(Self::WINDOW_WIDTH)
             .height(Self::WINDOW_HEIGHT)
@@ -258,6 +246,14 @@ impl super::Chip8Frontend for RaylibDisplay{
         }
     }
 
+
+}
+    
+fn times(v1: Vector2, v2: Vector2) -> Vector2{
+    vec2!(v1.x * v2.x, v1.y * v2.y)
+}
+
+impl super::Chip8Frontend for RaylibDisplay{
 
     fn update(&mut self, chip8: &Chip8, show_current_instruction: bool) -> bool {
         let screen_width = self.raylib_handle.get_screen_width();

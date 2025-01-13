@@ -3,16 +3,18 @@ use crate::*;
 /////////////////////////////////////
 /// Memory
 /////////////////////////////////////
-#[cfg(target_arch = "wasm32")]
+
+#[cfg(target_family = "wasm")]
 use js_sys::Math;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 macro_rules! rand {
     () => {
-        (Math.random() * u8::MAX).floor() as u8;
+        ((Math::random() * u8::MAX as f64).floor() as u8)
     };
 }
 
+#[cfg(not(target_family = "wasm"))]
 macro_rules! rand {
     () => {
         rand::random::<u8>()

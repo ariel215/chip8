@@ -1,7 +1,5 @@
-use frontend::Chip8Frontend;
 use ndarray::prelude::*;
 
-#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
 type Addr = u16;
@@ -12,7 +10,6 @@ type Display = Array2<bool>;
 pub(crate) mod emulator;
 pub(crate) mod frontend;
 
-#[cfg(not(target_arch = "wasm32"))]
 pub mod driver;
 
 pub mod errors;
@@ -20,19 +17,22 @@ pub mod instructions;
 
 
 #[derive(Clone, Copy)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
+#[wasm_bindgen]
 pub enum EmulatorMode {
     Running,
     Paused, 
 }
 
-pub struct Chip8Driver<Frontend: Chip8Frontend = frontend::raylib::RaylibDisplay>{
+pub use frontend::raylib::RaylibDisplay;
+
+#[wasm_bindgen]
+pub struct Chip8Driver{
     chip8: Chip8,   
-    frontend: Frontend,
+    frontend: RaylibDisplay,
     mode: EmulatorMode
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
+#[wasm_bindgen]
 pub struct Chip8{
     clock_speed: u64, // Cycles per second,
     memory: Memory,
@@ -221,3 +221,9 @@ const CHAR_SPRITES: [u8;16*5] = [
 const DISPLAY_COLUMNS: usize = 64;
 const DISPLAY_ROWS: usize = 32;
 
+#[cfg(target_os = "emscripten")]
+#[wasm_bindgen]
+pub extern "C" fn main(){}
+#[cfg(target_os = "emscripten")]
+#[wasm_bindgen]
+pub extern "C" fn on_resize(){}

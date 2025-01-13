@@ -1,17 +1,17 @@
-use crate::{frontend::{Chip8Frontend, KeyInput}, Chip8, Chip8Driver, EmulatorMode};
+use crate::{frontend::{Chip8Frontend, KeyInput}, Chip8, Chip8Driver, EmulatorMode, RaylibDisplay};
 use std::{thread::sleep, time::{Duration, Instant}};
-#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-#[cfg_attr(target_arch="wasm32", wasm_bindgen)]
-impl<Frontend:Chip8Frontend> Chip8Driver<Frontend>{
+pub const FRAME_DURATION: Duration = Duration::from_millis(1000/60);
 
-    pub const FRAME_DURATION: Duration = Duration::from_millis(1000/60);
+
+#[wasm_bindgen]
+impl Chip8Driver{
 
     pub fn new(speed: Option<u64>) -> Self{
         Self { 
             chip8: Chip8::init(speed),
-            frontend: Frontend::new(),
+            frontend: RaylibDisplay::new(),
             mode: EmulatorMode::Paused
         }
     }
@@ -91,7 +91,7 @@ impl<Frontend:Chip8Frontend> Chip8Driver<Frontend>{
             let start = Instant::now();
             self.step();
             let elapsed = Instant::now() - start;
-            sleep(Self::FRAME_DURATION - elapsed);
+            sleep(FRAME_DURATION - elapsed);
         }
     }
 }
