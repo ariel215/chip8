@@ -6,34 +6,32 @@ type Addr = u16;
 type Reg = u8;
 type Display = Array2<bool>;
 
-
 pub(crate) mod emulator;
-pub(crate) mod frontend;
 
 pub mod driver;
 
 pub mod errors;
+pub mod frontend;
 pub mod instructions;
-
 
 #[derive(Clone, Copy)]
 #[wasm_bindgen]
 pub enum EmulatorMode {
     Running,
-    Paused, 
+    Paused,
 }
 
 pub use frontend::raylib::RaylibDisplay;
 
 #[wasm_bindgen]
-pub struct Chip8Driver{
-    chip8: Chip8,   
+pub struct Chip8Driver {
+    chip8: Chip8,
     frontend: RaylibDisplay,
-    mode: EmulatorMode
+    mode: EmulatorMode,
 }
 
 #[wasm_bindgen]
-pub struct Chip8{
+pub struct Chip8 {
     clock_speed: u64, // Cycles per second,
     memory: Memory,
     registers: Registers,
@@ -43,8 +41,8 @@ pub struct Chip8{
 // Todo: turn these docs into attributes for a proc macro
 // ideally could derive: instruction->mnemonic, mnemonic-> instruction,
 // instruction -> u16, u16 -> instruction
-// all from attributes 
-pub enum Instruction{
+// all from attributes
+pub enum Instruction {
     /// CLS
     /// 0x00e0
     /// Clear screen
@@ -52,7 +50,7 @@ pub enum Instruction{
     /// RET
     /// 0x00ee
     /// Return
-    Ret, // Return 
+    Ret, // Return
     /// NOP
     /// 0x0000 or anything that isn't a valid instruction
     Nop,
@@ -67,7 +65,7 @@ pub enum Instruction{
     /// SE Vx imm8
     /// 0x3XNN
     /// Skip next instruction if  *reg == imm8
-    SkipEqImm(Reg,u8),
+    SkipEqImm(Reg, u8),
     /// SNE Vx imm8
     /// 0x4xnn
     /// Skip next instruction if *reg != imm8
@@ -84,7 +82,7 @@ pub enum Instruction{
     /// 0x7XNN
     /// *Vx += imm
     AddImm(Reg, u8),
-    /// LD Vx Vy 
+    /// LD Vx Vy
     /// 0x8XY0
     SetReg(Reg, Reg), // Set *Vx to *Vy
     /// OR Vx Vy
@@ -125,10 +123,10 @@ pub enum Instruction{
     Rand(Reg, u8), //Set Vx to rand() & imm
     /// DRW Vx Vy imm4
     /// 0xDXYN
-    /// Draw N-byte sprite at (Vx,Vy) 
+    /// Draw N-byte sprite at (Vx,Vy)
     /// Successive bytes are drawn one below the next
     /// Note that the chip8 display is indexed like (column, row)
-    Draw(Reg,Reg, u8), 
+    Draw(Reg, Reg, u8),
     /// SKP Vx
     /// 0xEX9E
     SkipKeyPressed(Reg), // Skip next instruction if the key in Vx is pressed
@@ -167,21 +165,21 @@ pub enum Instruction{
 pub(crate) const MEMORY_SIZE: usize = 4096;
 
 #[derive(Debug)]
-pub(crate) struct Memory{
+pub(crate) struct Memory {
     /// Random access memory
-    ram: [u8;MEMORY_SIZE],
+    ram: [u8; MEMORY_SIZE],
     /// Graphic display
     display: Display,
     /// Key array
     keys: [bool; 16],
     // call stack
-    stack: Vec<usize>
+    stack: Vec<usize>,
 }
 
 #[derive(Debug)]
-pub(crate) struct Registers{
+pub(crate) struct Registers {
     /// General purpose registers
-    vn: [u8;16], 
+    vn: [u8; 16],
     /// Delay register - counts down at 60 hz
     delay: u8,
     /// Sound register - counts down at 60 hz
@@ -194,11 +192,10 @@ pub(crate) struct Registers{
     /// RAM pointer
     i: usize,
     /// When set, stores the register to store the next keypress in
-    key_flag: Option<usize>
+    key_flag: Option<usize>,
 }
 
-
-const CHAR_SPRITES: [u8;16*5] = [
+const CHAR_SPRITES: [u8; 16 * 5] = [
     0xf0, 0x90, 0x90, 0x90, 0xf0, // 0
     0x20, 0x60, 0x20, 0x20, 0x70, // 1
     0xf0, 0x10, 0xf0, 0x80, 0xf0, // 2
@@ -214,16 +211,15 @@ const CHAR_SPRITES: [u8;16*5] = [
     0xf0, 0x80, 0x80, 0x80, 0xf0, // C
     0xe0, 0x90, 0x90, 0x90, 0xe0, // D
     0xf0, 0x80, 0xf0, 0x80, 0xf0, // E
-    0xf0, 0x80, 0xf0, 0x80, 0x80  // F
+    0xf0, 0x80, 0xf0, 0x80, 0x80, // F
 ];
-
 
 const DISPLAY_COLUMNS: usize = 64;
 const DISPLAY_ROWS: usize = 32;
 
 #[cfg(target_os = "emscripten")]
 #[wasm_bindgen]
-pub extern "C" fn main(){}
+pub extern "C" fn main() {}
 #[cfg(target_os = "emscripten")]
 #[wasm_bindgen]
-pub extern "C" fn on_resize(){}
+pub extern "C" fn on_resize() {}

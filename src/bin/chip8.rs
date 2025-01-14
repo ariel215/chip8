@@ -1,25 +1,23 @@
-use std::io::Read;
 use cfg_if::cfg_if;
 use chip8::Chip8Driver;
+use std::io::Read;
 
 use clap::Parser;
 use clio::*;
 use wasm_bindgen::prelude::wasm_bindgen;
 
-
 #[derive(Parser)]
-struct Args{
+struct Args {
     rom: ClioPath,
     #[arg(short, long)]
     speed: Option<u64>,
     #[arg(short, long)]
-    debug: bool
+    debug: bool,
 }
-
 
 #[wasm_bindgen]
 pub fn main() {
-    cfg_if!{
+    cfg_if! {
         if #[cfg(target_family = "wasm")] {
             return();
         } else {
@@ -31,7 +29,7 @@ pub fn main() {
             let mut driver = Chip8Driver::new(args.speed);
             driver.load_rom(&instructions);
             driver.run()
-        
+
         }
     }
 }
