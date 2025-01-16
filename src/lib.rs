@@ -23,28 +23,10 @@ pub enum EmulatorMode {
     Paused,
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
-#[wasm_bindgen]
-pub enum Frontend {
-    Raylib, 
-    Egui
-}
-
-impl std::fmt::Display for Frontend {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match *self {
-            Self::Egui => "egui",
-            Self::Raylib => "raylib"
-        })
-    }
-}
-
-
 #[wasm_bindgen]
 pub struct Chip8Driver {
     chip8: Chip8,
     frontend: Box<dyn Chip8Frontend>,
-    frontend_kind: Frontend,
     mode: EmulatorMode,
 }
 

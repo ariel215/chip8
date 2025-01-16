@@ -7,7 +7,7 @@ use std::default;
 use std::ops::Range;
 
 use crate::emulator::INSTRUCTION_SIZE;
-use crate::{Chip8, Frontend, Instruction};
+use crate::{Chip8, Instruction};
 
 #[derive(Clone, Copy)]
 pub enum KeyInput {
@@ -38,8 +38,6 @@ pub trait Chip8Frontend {
     fn on_mouse_scroll(&mut self, position: Vector, direction: isize);
 
     fn on_mouse_click(&mut self, position: Vector);
-
-    fn kind(&self) -> Frontend;
 
 }
 

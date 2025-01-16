@@ -33,3 +33,5 @@ egui-miniquad = "0.15.0"
 miniquad = "0.4.0"
 egui = "0.28.1"
 
+[features]
+egui = []

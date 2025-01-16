@@ -1,5 +1,5 @@
 use cfg_if::cfg_if;
-use chip8::{Chip8Driver, Frontend};
+use chip8::Chip8Driver;
 use std::io::Read;
 
 use clap::Parser;
@@ -13,8 +13,6 @@ struct Args {
     speed: Option<u64>,
     #[arg(short, long)]
     debug: bool,
-    #[arg(short, long, default_value_t=Frontend::Raylib)]
-    frontend: Frontend
 }
 
 pub fn main() {
@@ -27,9 +25,16 @@ pub fn main() {
             let mut input = args.rom.open().expect(&format!("No file named {}", rom_name));
             let mut instructions = Vec::new();
             input.read_to_end(&mut instructions).expect(&format!("Failed to read {}", rom_name ));
-            let mut driver = Chip8Driver::new(args.speed, args.frontend);
-            driver.load_rom(&instructions);
-            driver.run();
+            
+            cfg_if!{
+                if #[cfg(feature = "egui")] {
+                    Chip8Driver::run(args.speed, instructions)
+                } else {
+                    let mut driver = Chip8Driver::new(args.speed);
+                    driver.load_rom(&instructions);
+                    driver.run();
+                }
+            }
         }
     }
 }

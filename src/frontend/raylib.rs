@@ -173,7 +173,10 @@ impl RaylibDisplay {
         );
     }
 
-    pub fn new() -> Self {
+}
+
+impl Default for RaylibDisplay{ 
+    fn default() -> Self {
         let (mut rhandle, rthread) = RaylibBuilder::default()
             .width(Self::WINDOW_WIDTH)
             .height(Self::WINDOW_HEIGHT)
@@ -223,6 +226,7 @@ impl RaylibDisplay {
             breakpoints: BitArray::ZERO,
         }
     }
+
 }
 
 fn times(v1: Vector2, v2: Vector2) -> Vector2 {
@@ -407,9 +411,6 @@ impl super::Chip8Frontend for RaylibDisplay {
         return *self.breakpoints.get(addr).as_deref().unwrap_or(&false);
     }
     
-    fn kind(&self) -> crate::Frontend {
-        crate::Frontend::Raylib
-    }
 }
 
 struct RaylibInstructionWindow {

@@ -1,31 +1,36 @@
+use cfg_if::cfg_if;
+
 use crate::frontend::egui::EguiDisplay;
 use crate::frontend::raylib::RaylibDisplay;
-use crate::Frontend;
+use crate::frontend::Chip8Frontend;
 use crate::{
     frontend::KeyInput,
     Chip8, Chip8Driver, EmulatorMode,
 };
-use crate::frontend::Chip8Frontend;
 use std::process::exit;
 use std::{
     thread::sleep,
     time::{Duration, Instant},
 };
-use wasm_bindgen::prelude::*;
 
 pub const FRAME_DURATION: Duration = Duration::from_millis(1000 / 60);
 
-#[wasm_bindgen]
 impl Chip8Driver {
-    pub fn new(speed: Option<u64>, frontend: Frontend) -> Self {
-        Self {
-            chip8: Chip8::init(speed),
-            frontend: match frontend {
-                Frontend::Raylib => Box::new(RaylibDisplay::new()),
-                Frontend::Egui => Box::new(EguiDisplay::new())
-            },
-            mode: EmulatorMode::Paused,
-            frontend_kind: frontend,
+    pub fn new(speed: Option<u64>) -> Self {
+        cfg_if!{
+            if #[cfg(feature = "egui")] {
+                Self {
+                    chip8: Chip8::init(speed),
+                    frontend: Box::new(EguiDisplay::default()),
+                    mode: EmulatorMode::Running
+                }
+            } else {
+                Self {
+                    chip8: Chip8::init(speed),
+                    frontend: Box::new(RaylibDisplay::default()),
+                    mode: EmulatorMode::Paused
+                }
+            }
         }
     }
 
@@ -99,27 +104,32 @@ impl Chip8Driver {
         };
     }
 
-    pub fn run(mut self) {
-        match self.frontend.kind(){
-            Frontend::Raylib => {
-                loop {
-                    let start = Instant::now();
-                    self.step();
-                    if self.draw() {
-                        return;
-                    }
-                    let elapsed = Instant::now().duration_since(start);
-                    sleep(FRAME_DURATION - elapsed);
-                }
-            },
-            Frontend::Egui => {
-                let conf = miniquad::conf::Conf::default();
-                miniquad::start(conf, move ||Box::new(self));
+    #[cfg(feature = "egui")]
+    pub fn run(speed: Option<u64>, instructions: Vec<u8>){
+        let conf = miniquad::conf::Conf::default();
+        miniquad::start(conf, move ||{
+            let mut driver = Self::new(speed);
+            driver.load_rom(&instructions);
+            Box::new(driver)
+        })
+    }
+
+    #[cfg(not(feature = "egui"))]
+    pub fn run(&mut self) {
+        loop {
+            let start = Instant::now();
+            self.step();
+            if self.draw() {
+                return;
             }
+            let elapsed = Instant::now().duration_since(start);
+            sleep(FRAME_DURATION - elapsed);
         }
     }
 }
 
+
+#[cfg(feature = "egui")]
 impl miniquad::EventHandler for Chip8Driver {
     fn update(&mut self) {
         self.step();
@@ -141,5 +151,4 @@ impl miniquad::EventHandler for Chip8Driver {
     fn quit_requested_event(&mut self) {
         exit(0);
     }
-    
 }

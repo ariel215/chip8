@@ -39,19 +39,6 @@ impl EguiDisplay {
         (Key::Enter, KeyInput::Step),
     ];
 
-    pub fn new() -> Self {
-        let mut mq_context = mq::window::new_rendering_backend();
-        Self {
-            context: egui::Context::default(),
-            egui_mq: egui_miniquad::EguiMq::new(&mut *mq_context),
-            keymap: HashMap::from_iter(Self::KEYMAP.iter().copied()),
-            debug: false,
-            instruction_window: InstructionWindow::default(),
-            breakpoints: BitArray::ZERO,
-            mq_context,
-        }
-    }
-
     fn draw_screen(chip8: &Chip8) -> impl FnOnce(&mut Ui) -> Response {
         let colors = chip8
             .memory
@@ -101,6 +88,21 @@ impl EguiDisplay {
     }
 }
 
+impl Default for EguiDisplay {
+    fn default() -> Self {
+        let mut mq_context = mq::window::new_rendering_backend();
+        Self {
+            context: egui::Context::default(),
+            egui_mq: egui_miniquad::EguiMq::new(&mut *mq_context),
+            keymap: HashMap::from_iter(Self::KEYMAP.iter().copied()),
+            debug: false,
+            instruction_window: InstructionWindow::default(),
+            breakpoints: BitArray::ZERO,
+            mq_context,
+        }
+    }
+}
+
 impl super::Chip8Frontend for EguiDisplay {
     fn update(&mut self, chip8: &crate::Chip8, show_current_instruction: bool) -> bool {
         if show_current_instruction {
@@ -136,6 +138,9 @@ impl super::Chip8Frontend for EguiDisplay {
                     }
                 });
             });
+
+        self.egui_mq.draw(&mut *self.mq_context);
+        self.mq_context.commit_frame();
         self.context.input(|i| i.viewport().close_requested())
     }
 
@@ -149,7 +154,8 @@ impl super::Chip8Frontend for EguiDisplay {
     }
 
     fn is_breakpoint(&self, addr: usize) -> bool {
-        todo!()
+        // TODO: IMPLEMENT THIS
+        false
     }
 
     fn on_mouse_scroll(&mut self, position: super::Vector, direction: isize) {
@@ -158,7 +164,4 @@ impl super::Chip8Frontend for EguiDisplay {
 
     fn on_mouse_click(&mut self, position: super::Vector) {}
     
-    fn kind(&self) -> crate::Frontend {
-        crate::Frontend::Egui
-    }
 }
