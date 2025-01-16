@@ -1,7 +1,12 @@
+use crate::frontend::egui::EguiDisplay;
+use crate::frontend::raylib::RaylibDisplay;
+use crate::Frontend;
 use crate::{
-    frontend::{Chip8Frontend, KeyInput},
-    Chip8, Chip8Driver, EmulatorMode, RaylibDisplay,
+    frontend::KeyInput,
+    Chip8, Chip8Driver, EmulatorMode,
 };
+use crate::frontend::Chip8Frontend;
+use std::process::exit;
 use std::{
     thread::sleep,
     time::{Duration, Instant},
@@ -12,11 +17,15 @@ pub const FRAME_DURATION: Duration = Duration::from_millis(1000 / 60);
 
 #[wasm_bindgen]
 impl Chip8Driver {
-    pub fn new(speed: Option<u64>) -> Self {
+    pub fn new(speed: Option<u64>, frontend: Frontend) -> Self {
         Self {
             chip8: Chip8::init(speed),
-            frontend: RaylibDisplay::new(),
+            frontend: match frontend {
+                Frontend::Raylib => Box::new(RaylibDisplay::new()),
+                Frontend::Egui => Box::new(EguiDisplay::new())
+            },
             mode: EmulatorMode::Paused,
+            frontend_kind: frontend,
         }
     }
 
@@ -56,13 +65,15 @@ impl Chip8Driver {
         self.chip8.clear_keys();
         self.chip8.tick_timers();
 
-        let cycles_per_frame = 1000 * self.chip8.clock_speed as u32 / 60;
+        let cycles_per_frame = self.chip8.clock_speed / 60;
         for _ in 0..cycles_per_frame {
             for k in self.frontend.get_inputs() {
                 match k {
                     KeyInput::Chip8Key(key) => self.chip8.set_key(key),
-                    KeyInput::Step => {}
-                    KeyInput::TogglePause => self.mode = EmulatorMode::Paused,
+                    KeyInput::Step => {},
+                    KeyInput::TogglePause => {
+                        self.mode = EmulatorMode::Paused;
+                        break;},
                     KeyInput::ToggleDebug => self.frontend.toggle_debug(),
                     _ => {}
                 }
@@ -88,15 +99,47 @@ impl Chip8Driver {
         };
     }
 
-    pub fn run(&mut self) {
-        loop {
-            let start = Instant::now();
-            self.step();
-            if self.draw() {
-                return;
+    pub fn run(mut self) {
+        match self.frontend.kind(){
+            Frontend::Raylib => {
+                loop {
+                    let start = Instant::now();
+                    self.step();
+                    if self.draw() {
+                        return;
+                    }
+                    let elapsed = Instant::now().duration_since(start);
+                    sleep(FRAME_DURATION - elapsed);
+                }
+            },
+            Frontend::Egui => {
+                let conf = miniquad::conf::Conf::default();
+                miniquad::start(conf, move ||Box::new(self));
             }
-            let elapsed = Instant::now() - start;
-            sleep(FRAME_DURATION - elapsed);
         }
     }
+}
+
+impl miniquad::EventHandler for Chip8Driver {
+    fn update(&mut self) {
+        self.step();
+    }
+
+    fn draw(&mut self) {
+        Chip8Driver::draw(self);
+    }
+    
+    
+    fn window_minimized_event(&mut self) {
+        self.pause();
+    }
+    
+    fn window_restored_event(&mut self) {
+        self.mode = EmulatorMode::Running;
+    }
+    
+    fn quit_requested_event(&mut self) {
+        exit(0);
+    }
+    
 }

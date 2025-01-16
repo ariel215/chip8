@@ -7,7 +7,7 @@ use std::default;
 use std::ops::Range;
 
 use crate::emulator::INSTRUCTION_SIZE;
-use crate::{Chip8, Instruction};
+use crate::{Chip8, Frontend, Instruction};
 
 #[derive(Clone, Copy)]
 pub enum KeyInput {
@@ -39,51 +39,55 @@ pub trait Chip8Frontend {
 
     fn on_mouse_click(&mut self, position: Vector);
 
-    fn print_memory(chip8: &Chip8) -> String {
-        let window_before = 0;
-        let window_after = 8 * 4;
-        // characters by lines
-        let ram_slice = &chip8.memory.ram[chip8.registers.i - (window_before * INSTRUCTION_SIZE)
-            ..chip8.registers.i + (window_after * INSTRUCTION_SIZE)];
-        ram_slice
-            .iter()
-            .tuples()
-            .map(|(b0, b1, b2, b3, b4, b5, b6, b7)| {
-                format!(
-                    "{:2x} {:2x} {:2x} {:2x} {:2x} {:2x} {:2x} {:2x}",
-                    b0, b1, b2, b3, b4, b5, b6, b7
-                )
-            })
-            .join("\n")
-    }
+    fn kind(&self) -> Frontend;
 
-    fn print_registers(chip8: &Chip8) -> String {
-        let registers = &chip8.registers;
-        let mut register_desc: Vec<_> = registers
-            .vn
-            .iter()
-            .enumerate()
-            .map(|(index, value)| format!("V{:x}: {:x}", index, value))
-            .collect();
-        register_desc.push(format!("delay: {}", registers.delay));
-        register_desc.push(format!("sound: {}", registers.sound));
-        register_desc.push(format!("pc: {:x}", registers.pc));
-        register_desc.push(format!("sp: {:x}", registers.sp));
-        register_desc.push(format!("memory: {:x}", registers.i));
-
-        // itertools::tuples() drops any elements that don't fit in a tuple,
-        // so we need to make sure that everything lines up
-        while register_desc.len() % 4 != 0 {
-            register_desc.push(String::new());
-        }
-
-        register_desc
-            .iter()
-            .tuples()
-            .map(|(v1, v2, v3, v4)| format!("{v1}\t{v2}\t{v3}\t{v4}\t"))
-            .join("\n")
-    }
 }
+
+fn print_memory(chip8: &Chip8) -> String {
+    let window_before = 0;
+    let window_after = 8 * 4;
+    // characters by lines
+    let ram_slice = &chip8.memory.ram[chip8.registers.i - (window_before * INSTRUCTION_SIZE)
+        ..chip8.registers.i + (window_after * INSTRUCTION_SIZE)];
+    ram_slice
+        .iter()
+        .tuples()
+        .map(|(b0, b1, b2, b3, b4, b5, b6, b7)| {
+            format!(
+                "{:2x} {:2x} {:2x} {:2x} {:2x} {:2x} {:2x} {:2x}",
+                b0, b1, b2, b3, b4, b5, b6, b7
+            )
+        })
+        .join("\n")
+}
+
+fn print_registers(chip8: &Chip8) -> String {
+    let registers = &chip8.registers;
+    let mut register_desc: Vec<_> = registers
+        .vn
+        .iter()
+        .enumerate()
+        .map(|(index, value)| format!("V{:x}: {:x}", index, value))
+        .collect();
+    register_desc.push(format!("delay: {}", registers.delay));
+    register_desc.push(format!("sound: {}", registers.sound));
+    register_desc.push(format!("pc: {:x}", registers.pc));
+    register_desc.push(format!("sp: {:x}", registers.sp));
+    register_desc.push(format!("memory: {:x}", registers.i));
+
+    // itertools::tuples() drops any elements that don't fit in a tuple,
+    // so we need to make sure that everything lines up
+    while register_desc.len() % 4 != 0 {
+        register_desc.push(String::new());
+    }
+
+    register_desc
+        .iter()
+        .tuples()
+        .map(|(v1, v2, v3, v4)| format!("{v1}\t{v2}\t{v3}\t{v4}\t"))
+        .join("\n")
+}
+
 
 struct InstructionWindow {
     start_addr: usize,

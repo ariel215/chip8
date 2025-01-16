@@ -4,7 +4,7 @@ use egui::{ahash::HashMap, pos2, vec2, Color32, Key, Rect, Response, Rounding, S
 use itertools::Itertools;
 use miniquad as mq;
 
-use super::{Chip8Frontend, InstructionWindow, KeyInput};
+use super::{print_memory, print_registers, Chip8Frontend, InstructionWindow, KeyInput};
 pub struct EguiDisplay {
     mq_context: Box<dyn mq::RenderingBackend>,
     context: egui::Context,
@@ -83,12 +83,12 @@ impl EguiDisplay {
     }
 
     fn draw_memory(chip8: &Chip8) -> impl FnOnce(&mut Ui) -> Response {
-        let text = Self::print_memory(chip8);
+        let text = print_memory(chip8);
         move |ui| ui.label(text)
     }
 
     fn draw_registers(chip8: &Chip8) -> impl FnOnce(&mut Ui) -> Response {
-        let text = Self::print_registers(chip8);
+        let text = print_registers(chip8);
         move |ui| ui.label(text)
     }
 
@@ -106,9 +106,11 @@ impl super::Chip8Frontend for EguiDisplay {
         if show_current_instruction {
             self.instruction_window.focus(chip8.pc());
         }
+        self.mq_context.clear(Some((1., 1., 1., 1.)), None, None);
         self.mq_context
             .begin_default_pass(mq::PassAction::clear_color(0.0, 0.0, 0.0, 1.0));
         self.mq_context.end_render_pass();
+        
         self.egui_mq
             .run(&mut *self.mq_context, |_mq_ctx, egui_ctx| {
                 egui::CentralPanel::default().show(egui_ctx, |ui| {
@@ -155,4 +157,8 @@ impl super::Chip8Frontend for EguiDisplay {
     }
 
     fn on_mouse_click(&mut self, position: super::Vector) {}
+    
+    fn kind(&self) -> crate::Frontend {
+        crate::Frontend::Egui
+    }
 }

@@ -4,7 +4,7 @@ use std::{
     time::{self, Duration},
 };
 
-use super::{Chip8Frontend, KeyInput};
+use super::{print_memory, print_registers, Chip8Frontend, KeyInput};
 use crate::{emulator::INSTRUCTION_SIZE, Chip8, MEMORY_SIZE};
 use ::raylib::{
     self,
@@ -32,7 +32,7 @@ impl From<Vector2> for super::Vector {
 pub struct RaylibDisplay {
     raylib_handle: RaylibHandle,
     raylib_thread: RaylibThread,
-    raylib_sound: Sound<'static>,
+    raylib_sound: Option<Sound<'static>>,
     debug_mode: bool,
     font: Option<Font>,
     keymap: HashMap<KeyboardKey, KeyInput>,
@@ -123,7 +123,7 @@ impl RaylibDisplay {
         screen_dims: Vector2,
         handle: &mut raylib::prelude::RaylibDrawHandle,
     ) {
-        let text = <Self as Chip8Frontend>::print_memory(chip8);
+        let text = print_memory(chip8);
         handle.draw_rectangle_v(
             times(vec2!(Self::DEBUG_MEMORY_WINDOW), screen_dims),
             times(
@@ -152,7 +152,7 @@ impl RaylibDisplay {
         screen_dims: Vector2,
         handle: &mut raylib::prelude::RaylibDrawHandle,
     ) {
-        let text = <Self as Chip8Frontend>::print_registers(chip8);
+        let text = print_registers(chip8);
         handle.draw_rectangle_v(
             times(vec2!(Self::DEBUG_REGISTER_WINDOW), screen_dims),
             times(
@@ -205,11 +205,11 @@ impl RaylibDisplay {
             LazyLock::new(|| RaylibAudio::init_audio_device().unwrap());
         let wave = AUDIO
             .new_wave_from_memory("ogg", RaylibDisplay::SOUND_FILE)
-            .unwrap();
-        let sound = AUDIO.new_sound_from_wave(&wave).unwrap();
+            .ok();
+        let sound = wave.map(|w| AUDIO.new_sound_from_wave(&w).unwrap());
 
         let font = rhandle
-            .load_font_from_memory(&rthread, "ttf", Self::FONT_FILE, 18, None)
+            .load_font(&rthread,"resources/fonts/VT323/VT323-Regular.ttf")
             .unwrap();
         Self {
             raylib_handle: rhandle,
@@ -298,11 +298,14 @@ impl super::Chip8Frontend for RaylibDisplay {
                 Self::draw_registers(chip8, screen_dims, &mut handle);
             }
         }
-        if self.raylib_sound.is_playing() & !chip8.sound() {
-            self.raylib_sound.stop();
-        }
-        if !self.raylib_sound.is_playing() & chip8.sound() {
-            self.raylib_sound.play();
+        if let Some(sound) = self.raylib_sound.as_mut(){
+            if sound.is_playing() & !chip8.sound() {
+                sound.stop();
+            }
+            if !sound.is_playing() & chip8.sound() {
+                sound.play();
+            }
+    
         }
 
         self.raylib_handle.window_should_close()
@@ -402,6 +405,10 @@ impl super::Chip8Frontend for RaylibDisplay {
 
     fn is_breakpoint(&self, addr: usize) -> bool {
         return *self.breakpoints.get(addr).as_deref().unwrap_or(&false);
+    }
+    
+    fn kind(&self) -> crate::Frontend {
+        crate::Frontend::Raylib
     }
 }
 
