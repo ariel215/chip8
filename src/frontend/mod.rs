@@ -1,5 +1,5 @@
-pub mod raylib;
 pub mod egui;
+pub mod raylib;
 
 use itertools::Itertools;
 use std::cmp::max;
@@ -105,7 +105,7 @@ impl InstructionWindow {
         self.start_addr..(self.start_addr + self.len * INSTRUCTION_SIZE)
     }
 
-    pub fn lines(&self, chip8: &Chip8) -> Vec<(usize,String)> {
+    pub fn lines(&self, chip8: &Chip8) -> Vec<(usize, String)> {
         let start_addr = self.start_addr;
         let ram_slice = &chip8.memory.ram[self.range()];
         ram_slice
@@ -116,23 +116,24 @@ impl InstructionWindow {
                 (start_addr + i1, u16::from_be_bytes([*b1, *b2]).into())
             })
             .map(|(addr, instr): (usize, Instruction)| {
-            (
-                addr,
-                if addr == chip8.pc() {
-                    format!("\t>>0x{:x}\t\t{}", addr, instr)
-                } else {
-                    format!("0x{:x}\t\t{}", addr, instr)
-                },
-            )
-        }).collect_vec()
+                (
+                    addr,
+                    if addr == chip8.pc() {
+                        format!("\t>>0x{:x}\t\t{}", addr, instr)
+                    } else {
+                        format!("0x{:x}\t\t{}", addr, instr)
+                    },
+                )
+            })
+            .collect_vec()
     }
 }
 
 impl Default for InstructionWindow {
     fn default() -> Self {
-            Self {
-                start_addr: Self::BASE_ADDR,
-                len: 8
-            }
+        Self {
+            start_addr: Self::BASE_ADDR,
+            len: 8,
         }
+    }
 }

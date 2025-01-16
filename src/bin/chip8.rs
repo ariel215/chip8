@@ -15,7 +15,6 @@ struct Args {
     debug: bool,
 }
 
-#[wasm_bindgen]
 pub fn main() {
     cfg_if! {
         if #[cfg(target_family = "wasm")] {

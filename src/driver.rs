@@ -77,7 +77,8 @@ impl Chip8Driver {
     }
 
     fn draw(&mut self) -> bool {
-        return self.frontend.update(&self.chip8, matches!(self.mode, EmulatorMode::Running));
+        self.frontend
+            .update(&self.chip8, matches!(self.mode, EmulatorMode::Running))
     }
 
     pub fn step(&mut self) {
@@ -91,10 +92,11 @@ impl Chip8Driver {
         loop {
             let start = Instant::now();
             self.step();
-            if self.draw() {return}
+            if self.draw() {
+                return;
+            }
             let elapsed = Instant::now() - start;
             sleep(FRAME_DURATION - elapsed);
         }
     }
 }
-

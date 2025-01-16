@@ -1,22 +1,18 @@
-use bitvec::{array::BitArray, BitArr};
-use egui::{ahash::HashMap, epaint::RectShape, pos2, vec2, Color32, Key, Layout, Mesh, Pos2, Rect, Response, Rounding, Sense, TextureId, Ui, Vec2};
-use itertools::Itertools;
-use ndarray::IntoNdProducer;
-use raylib::color::Color;
 use crate::{Chip8, DISPLAY_COLUMNS, DISPLAY_ROWS, MEMORY_SIZE};
-use egui_miniquad::*;
+use bitvec::{array::BitArray, BitArr};
+use egui::{ahash::HashMap, pos2, vec2, Color32, Key, Rect, Response, Rounding, Sense, Ui, Vec2};
+use itertools::Itertools;
 use miniquad as mq;
 
-
 use super::{Chip8Frontend, InstructionWindow, KeyInput};
-struct EguiDisplay {
+pub struct EguiDisplay {
     mq_context: Box<dyn mq::RenderingBackend>,
     context: egui::Context,
     egui_mq: egui_miniquad::EguiMq,
-    keymap: HashMap<Key,KeyInput>,
+    keymap: HashMap<Key, KeyInput>,
     debug: bool,
     breakpoints: BitArr!(for MEMORY_SIZE),
-    instruction_window: InstructionWindow
+    instruction_window: InstructionWindow,
 }
 
 impl EguiDisplay {
@@ -42,12 +38,11 @@ impl EguiDisplay {
         (Key::Period, KeyInput::ToggleDebug),
         (Key::Enter, KeyInput::Step),
     ];
-    
 
-    fn new() -> Self {
+    pub fn new() -> Self {
         let mut mq_context = mq::window::new_rendering_backend();
-        Self{
-            context: egui:: Context::default(),
+        Self {
+            context: egui::Context::default(),
             egui_mq: egui_miniquad::EguiMq::new(&mut *mq_context),
             keymap: HashMap::from_iter(Self::KEYMAP.iter().copied()),
             debug: false,
@@ -57,85 +52,94 @@ impl EguiDisplay {
         }
     }
 
-    fn draw_screen<'a, 'b>(chip8: &'a Chip8) -> impl FnOnce(&mut Ui) -> Response {
-        let colors = chip8.memory.display.outer_iter()
-            .map(|row | row.iter().map(
-                |cell| Color32::from_gray(if *cell {0} else {1})
-            ).collect_vec()
-        ).collect_vec();
-        move |ui: &mut Ui | {
+    fn draw_screen(chip8: &Chip8) -> impl FnOnce(&mut Ui) -> Response {
+        let colors = chip8
+            .memory
+            .display
+            .outer_iter()
+            .map(|row| {
+                row.iter()
+                    .map(|cell| Color32::from_gray(if *cell { 0 } else { 1 }))
+                    .collect_vec()
+            })
+            .collect_vec();
+        move |ui: &mut Ui| {
             let height = ui.available_height();
             let width = ui.available_width();
             let pixel_heigt = height / DISPLAY_ROWS as f32;
             let pixel_width = width / DISPLAY_COLUMNS as f32;
             for (x, row) in colors.iter().enumerate() {
-                for (y, color) in row.iter().enumerate(){
+                for (y, color) in row.iter().enumerate() {
                     let square = Rect::from_min_size(
-                        pos2(x as f32 * pixel_width, y as f32 * pixel_heigt), 
-                    vec2(pixel_width, pixel_heigt));
+                        pos2(x as f32 * pixel_width, y as f32 * pixel_heigt),
+                        vec2(pixel_width, pixel_heigt),
+                    );
                     ui.painter().rect_filled(square, Rounding::ZERO, *color);
                 }
             }
             let (_, response) = ui.allocate_at_least(Vec2::ZERO, Sense::focusable_noninteractive());
-            return response
-    
+            response
         }
     }
-    
+
     fn draw_memory(chip8: &Chip8) -> impl FnOnce(&mut Ui) -> Response {
         let text = Self::print_memory(chip8);
-        move |ui | ui.label(text)
+        move |ui| ui.label(text)
     }
-    
-    fn draw_registers(chip8: &Chip8) -> impl FnOnce(&mut Ui) -> Response { 
+
+    fn draw_registers(chip8: &Chip8) -> impl FnOnce(&mut Ui) -> Response {
         let text = Self::print_registers(chip8);
         move |ui| ui.label(text)
     }
-    
-    fn draw_instructions(window: &InstructionWindow, chip8: &Chip8) -> impl FnOnce(&mut Ui) -> Response {
+
+    fn draw_instructions(
+        window: &InstructionWindow,
+        chip8: &Chip8,
+    ) -> impl FnOnce(&mut Ui) -> Response {
         let lines = window.lines(chip8);
-        move |ui| ui.label(lines.iter().map(|(_addr, text)|text).join("\n"))
+        move |ui| ui.label(lines.iter().map(|(_addr, text)| text).join("\n"))
     }
-    
 }
 
-
-impl super::Chip8Frontend for  EguiDisplay {
+impl super::Chip8Frontend for EguiDisplay {
     fn update(&mut self, chip8: &crate::Chip8, show_current_instruction: bool) -> bool {
-        if show_current_instruction{
+        if show_current_instruction {
             self.instruction_window.focus(chip8.pc());
         }
-        self.mq_context.begin_default_pass(mq::PassAction::clear_color(0.0, 0.0,0.0,1.0));
+        self.mq_context
+            .begin_default_pass(mq::PassAction::clear_color(0.0, 0.0, 0.0, 1.0));
         self.mq_context.end_render_pass();
-        self.egui_mq.run(&mut *self.mq_context, 
-            |_mq_ctx, egui_ctx| {
-                
+        self.egui_mq
+            .run(&mut *self.mq_context, |_mq_ctx, egui_ctx| {
                 egui::CentralPanel::default().show(egui_ctx, |ui| {
                     if self.debug {
-                        return ui.horizontal(|ui|{
-                            ui.vertical(|ui|{
-                                ui.add(Self::draw_screen(chip8)) 
-                                | ui.add(Self::draw_instructions(&self.instruction_window, chip8))
-                            }).response | (
-                                ui.vertical(|ui|{
+                        ui.horizontal(|ui| {
+                            ui.vertical(|ui| {
+                                ui.add(Self::draw_screen(chip8))
+                                    | ui.add(Self::draw_instructions(
+                                        &self.instruction_window,
+                                        chip8,
+                                    ))
+                            })
+                            .response
+                                | (ui.vertical(|ui| {
                                     ui.add(Self::draw_memory(chip8))
-                                    | ui.add(Self::draw_registers(chip8))
-                                })
-                            ).response
-                        }).inner
+                                        | ui.add(Self::draw_registers(chip8))
+                                }))
+                                .response
+                        })
+                        .inner
                     } else {
-                        return ui.add(Self::draw_screen(chip8))
+                        ui.add(Self::draw_screen(chip8))
                     }
                 });
-            }
-        );
+            });
         self.context.input(|i| i.viewport().close_requested())
     }
 
     fn get_inputs(&mut self) -> Vec<super::KeyInput> {
-        self.context.input(|i|{
-            i.keys_down.iter().map(|k|self.keymap[k]).collect()
-        })
+        self.context
+            .input(|i| i.keys_down.iter().map(|k| self.keymap[k]).collect())
     }
 
     fn toggle_debug(&mut self) {
@@ -150,8 +154,5 @@ impl super::Chip8Frontend for  EguiDisplay {
         todo!()
     }
 
-    fn on_mouse_click(&mut self, position: super::Vector) {
-        
-    }
+    fn on_mouse_click(&mut self, position: super::Vector) {}
 }
-

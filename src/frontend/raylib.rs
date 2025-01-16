@@ -5,7 +5,7 @@ use std::{
 };
 
 use super::{Chip8Frontend, KeyInput};
-use crate::{emulator::INSTRUCTION_SIZE, Chip8, Instruction, MEMORY_SIZE};
+use crate::{emulator::INSTRUCTION_SIZE, Chip8, MEMORY_SIZE};
 use ::raylib::{
     self,
     audio::{RaylibAudio, Sound},
@@ -113,17 +113,9 @@ impl RaylibDisplay {
         height: 0.5,
     };
 
-    #[cfg(target_family = "unix")]
     pub const SOUND_FILE: &'static [u8] = include_bytes!("../../resources/buzz.ogg");
-    #[cfg(target_family = "unix")]
     pub const FONT_FILE: &'static [u8] =
         include_bytes!("../../resources/fonts/VT323/VT323-Regular.ttf");
-
-    #[cfg(target_family = "windows")]
-    pub const SOUND_FILE: &'static [u8] = include_bytes!("..\\resources\\buzz.ogg");
-    #[cfg(target_family = "windows")]
-    pub const FONT_FILE: &'static [u8] =
-        include_bytes!("..\\resources\\fonts\\VT323\\VT323-Regular.ttf");
 
     fn draw_memory(
         font: &Font,
@@ -131,7 +123,7 @@ impl RaylibDisplay {
         screen_dims: Vector2,
         handle: &mut raylib::prelude::RaylibDrawHandle,
     ) {
-        let text = <Self as Chip8Frontend>::print_memory(&chip8);
+        let text = <Self as Chip8Frontend>::print_memory(chip8);
         handle.draw_rectangle_v(
             times(vec2!(Self::DEBUG_MEMORY_WINDOW), screen_dims),
             times(
@@ -147,8 +139,8 @@ impl RaylibDisplay {
             font,
             &text,
             vec2!(
-                (screen_dims.x as f32 * Self::DEBUG_MEMORY_WINDOW.x) as i32 + 5,
-                (screen_dims.y as f32 * Self::DEBUG_MEMORY_WINDOW.y) as i32 + 10
+                (screen_dims.x * Self::DEBUG_MEMORY_WINDOW.x) as i32 + 5,
+                (screen_dims.y * Self::DEBUG_MEMORY_WINDOW.y) as i32 + 10
             ),
             18.0,
             1.0,
@@ -174,8 +166,8 @@ impl RaylibDisplay {
         );
         handle.draw_text(
             &text,
-            (screen_dims.x as f32 * Self::DEBUG_REGISTER_WINDOW.x) as i32 + 5,
-            (screen_dims.y as f32 * Self::DEBUG_REGISTER_WINDOW.y) as i32 + 10,
+            (screen_dims.x * Self::DEBUG_REGISTER_WINDOW.x) as i32 + 5,
+            (screen_dims.y * Self::DEBUG_REGISTER_WINDOW.y) as i32 + 10,
             18,
             Color::WHITE,
         );
@@ -239,7 +231,6 @@ fn times(v1: Vector2, v2: Vector2) -> Vector2 {
 
 impl super::Chip8Frontend for RaylibDisplay {
     fn update(&mut self, chip8: &Chip8, show_current_instruction: bool) -> bool {
-
         self.keys_down = self
             .keys_down
             .iter()
@@ -255,7 +246,6 @@ impl super::Chip8Frontend for RaylibDisplay {
                 )
             })
             .collect();
-
 
         let screen_width = self.raylib_handle.get_screen_width();
         let pixel_width: i32 = ((screen_width / crate::DISPLAY_COLUMNS as i32) as f32
@@ -302,12 +292,7 @@ impl super::Chip8Frontend for RaylibDisplay {
                     &mut handle,
                 );
                 // Draw memory view
-                Self::draw_memory(
-                    &self.font.as_ref().unwrap(),
-                    chip8,
-                    screen_dims,
-                    &mut handle,
-                );
+                Self::draw_memory(self.font.as_ref().unwrap(), chip8, screen_dims, &mut handle);
 
                 // Draw register view
                 Self::draw_registers(chip8, screen_dims, &mut handle);
@@ -446,7 +431,6 @@ impl RaylibInstructionWindow {
         chip8: &Chip8,
         handle: &mut T,
     ) {
-
         handle.draw_rectangle_v(
             vec2!(self.position.x, self.position.y),
             vec2!(self.position.width, self.position.height),
@@ -463,7 +447,7 @@ impl RaylibInstructionWindow {
             }
             handle.draw_text_ex(
                 font,
-                &line,
+                line,
                 vec2!(Self::MARGIN_LEFT, self.grid_line(i)),
                 32.0,
                 1.0,
