@@ -16,7 +16,7 @@ use std::{
 pub const FRAME_DURATION: Duration = Duration::from_millis(1000 / 60);
 
 impl Chip8Driver {
-    pub fn new(speed: Option<u64>) -> Self {
+    pub fn new(speed: Option<u64>, paused: bool) -> Self {
         cfg_if!{
             if #[cfg(feature = "egui")] {
                 Self {
@@ -28,7 +28,7 @@ impl Chip8Driver {
                 Self {
                     chip8: Chip8::init(speed),
                     frontend: Box::new(RaylibDisplay::default()),
-                    mode: EmulatorMode::Paused
+                    mode: if paused {EmulatorMode::Paused} else {EmulatorMode::Running}
                 }
             }
         }
@@ -62,6 +62,7 @@ impl Chip8Driver {
             }
         }
     }
+    
 
     pub fn step_running(&mut self) {
         // At the beginning of each frame, we:
@@ -104,26 +105,28 @@ impl Chip8Driver {
         };
     }
 
-    #[cfg(feature = "egui")]
-    pub fn run(speed: Option<u64>, instructions: Vec<u8>){
-        let conf = miniquad::conf::Conf::default();
-        miniquad::start(conf, move ||{
-            let mut driver = Self::new(speed);
-            driver.load_rom(&instructions);
-            Box::new(driver)
-        })
-    }
-
-    #[cfg(not(feature = "egui"))]
-    pub fn run(&mut self) {
-        loop {
-            let start = Instant::now();
-            self.step();
-            if self.draw() {
-                return;
+    cfg_if!{
+        if #[cfg(feature="egui")]{
+            pub fn run(speed: Option<u64>, instructions: Vec<u8>, paused: bool){
+                let conf = miniquad::conf::Conf::default();
+                miniquad::start(conf, move ||{
+                    let mut driver = Self::new(speed, paused);
+                    driver.load_rom(&instructions);
+                    Box::new(driver)
+                })
             }
-            let elapsed = Instant::now().duration_since(start);
-            sleep(FRAME_DURATION - elapsed);
+        } else {
+            pub fn run(&mut self) {
+                loop {
+                    let start = Instant::now();
+                    self.step();
+                    if self.draw() {
+                        return;
+                    }
+                    let elapsed = Instant::now().duration_since(start);
+                    sleep(FRAME_DURATION - elapsed);
+                }
+            }
         }
     }
 }
@@ -151,4 +154,48 @@ impl miniquad::EventHandler for Chip8Driver {
     fn quit_requested_event(&mut self) {
         exit(0);
     }
+
+    // fn mouse_wheel_event(&mut self, dx: f32, dy: f32) {
+    //     self.frontend.on_mouse_scroll(dx, dy);
+    // }
+
+    // fn mouse_button_down_event(
+    //     &mut self,
+    //     mb: mq::MouseButton,
+    //     x: f32,
+    //     y: f32,
+    // ) {
+    //     self.frontend.on_
+    // }
+
+    // fn mouse_button_up_event(
+    //     &mut self,
+    //     mb: mq::MouseButton,
+    //     x: f32,
+    //     y: f32,
+    // ) {
+    //     self.egui_mq.mouse_button_up_event(mb, x, y);
+    // }
+
+    // fn char_event(
+    //     &mut self,
+    //     character: char,
+    //     _keymods: mq::KeyMods,
+    //     _repeat: bool,
+    // ) {
+    //     self.egui_mq.char_event(character);
+    // }
+
+    // fn key_down_event(
+    //     &mut self,
+    //     keycode: mq::KeyCode,
+    //     keymods: mq::KeyMods,
+    //     _repeat: bool,
+    // ) {
+    //     self.egui_mq.key_down_event(keycode, keymods);
+    // }
+
+    // fn key_up_event(&mut self, keycode: mq::KeyCode, keymods: mq::KeyMods) {
+    //     self.egui_mq.key_up_event(keycode, keymods);
+    // }
 }

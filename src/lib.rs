@@ -1,3 +1,4 @@
+use cfg_if::cfg_if;
 use clap::ValueEnum;
 use frontend::Chip8Frontend;
 use ndarray::prelude::*;
@@ -8,7 +9,7 @@ type Addr = u16;
 type Reg = u8;
 type Display = Array2<bool>;
 
-pub(crate) mod emulator;
+pub mod emulator;
 
 pub mod driver;
 
@@ -23,11 +24,23 @@ pub enum EmulatorMode {
     Paused,
 }
 
-#[wasm_bindgen]
-pub struct Chip8Driver {
-    chip8: Chip8,
-    frontend: Box<dyn Chip8Frontend>,
-    mode: EmulatorMode,
+cfg_if!{
+    if #[cfg(feature = "egui")] {
+        #[wasm_bindgen]
+        pub struct Chip8Driver {
+            chip8: Chip8,
+            frontend: Box<dyn Chip8Frontend>,
+            mode: EmulatorMode,
+
+        }
+    } else {
+        pub struct Chip8Driver {
+            chip8: Chip8,
+            frontend: Box<dyn Chip8Frontend>,
+            mode: EmulatorMode,
+        }
+        
+    }
 }
 
 #[wasm_bindgen]

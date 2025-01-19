@@ -4,7 +4,7 @@ use egui::{ahash::HashMap, pos2, vec2, Color32, Key, Rect, Response, Rounding, S
 use itertools::Itertools;
 use miniquad as mq;
 
-use super::{print_memory, print_registers, Chip8Frontend, InstructionWindow, KeyInput};
+use super::{print_memory, print_registers, InstructionWindow, KeyInput};
 pub struct EguiDisplay {
     mq_context: Box<dyn mq::RenderingBackend>,
     context: egui::Context,
@@ -46,22 +46,23 @@ impl EguiDisplay {
             .outer_iter()
             .map(|row| {
                 row.iter()
-                    .map(|cell| Color32::from_gray(if *cell { 0 } else { 1 }))
+                    .map(|cell| Color32::from_gray(if *cell { u8::MAX } else { 0 }))
                     .collect_vec()
             })
             .collect_vec();
         move |ui: &mut Ui| {
             let height = ui.available_height();
             let width = ui.available_width();
-            let pixel_heigt = height / DISPLAY_ROWS as f32;
+            let pixel_height = height / DISPLAY_ROWS as f32;
             let pixel_width = width / DISPLAY_COLUMNS as f32;
-            for (x, row) in colors.iter().enumerate() {
-                for (y, color) in row.iter().enumerate() {
-                    let square = Rect::from_min_size(
-                        pos2(x as f32 * pixel_width, y as f32 * pixel_heigt),
-                        vec2(pixel_width, pixel_heigt),
-                    );
-                    ui.painter().rect_filled(square, Rounding::ZERO, *color);
+            let draw_pixel = |x,y,shade: &Color32|{
+                ui.painter().rect_filled(Rect::from_min_size(pos2(x,y), vec2(pixel_width,pixel_height)), 
+                Rounding::ZERO,
+            *shade)
+            };
+            for (x,row) in colors.iter().enumerate(){
+                for (y, color) in row.iter().enumerate(){
+                    draw_pixel(x as f32 * pixel_width, y as f32 * pixel_height, color);
                 }
             }
             let (_, response) = ui.allocate_at_least(Vec2::ZERO, Sense::focusable_noninteractive());

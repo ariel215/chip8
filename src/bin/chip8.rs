@@ -13,6 +13,8 @@ struct Args {
     speed: Option<u64>,
     #[arg(short, long)]
     debug: bool,
+    #[arg(short, long)]
+    paused: bool,
 }
 
 pub fn main() {
@@ -28,9 +30,9 @@ pub fn main() {
             
             cfg_if!{
                 if #[cfg(feature = "egui")] {
-                    Chip8Driver::run(args.speed, instructions)
+                    Chip8Driver::run(args.speed, instructions, args.paused)
                 } else {
-                    let mut driver = Chip8Driver::new(args.speed);
+                    let mut driver = Chip8Driver::new(args.speed, args.paused);
                     driver.load_rom(&instructions);
                     driver.run();
                 }

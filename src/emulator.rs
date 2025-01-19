@@ -4,22 +4,23 @@ use crate::*;
 /// Memory
 /////////////////////////////////////
 
-#[cfg(target_family = "wasm")]
-use js_sys::Math;
-
-#[cfg(target_family = "wasm")]
-macro_rules! rand {
-    () => {
-        ((Math::random() * u8::MAX as f64).floor() as u8)
-    };
+cfg_if!{
+    if #[cfg(target_family = "wasm")]{
+        use js_sys::Math;
+        macro_rules! rand {
+            () => {
+                ((Math::random() * u8::MAX as f64).floor() as u8)
+            };
+        }
+    } else {
+        macro_rules! rand {
+            () => {
+                rand::random::<u8>()
+            };
+        }        
+    }
 }
 
-#[cfg(not(target_family = "wasm"))]
-macro_rules! rand {
-    () => {
-        rand::random::<u8>()
-    };
-}
 
 #[inline]
 fn get_bit(char: u8, index: usize) -> bool {
