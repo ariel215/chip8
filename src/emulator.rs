@@ -1,4 +1,66 @@
 use crate::*;
+pub(crate) const MEMORY_SIZE: usize = 4096;
+use instructions::Instruction;
+
+#[wasm_bindgen]
+pub struct Chip8 {
+    pub(crate) clock_speed: u64, // Cycles per second,
+    pub (crate) memory: Memory,
+    pub(crate) registers: Registers,
+}
+
+#[derive(Debug)]
+pub(crate) struct Memory {
+    /// Random access memory
+    pub(crate) ram: [u8; MEMORY_SIZE],
+    /// Graphic display
+    pub(crate) display: Display,
+    /// Key array
+    pub(crate) keys: [bool; 16],
+    // call stack
+    pub(crate) stack: Vec<usize>,
+}
+
+#[derive(Debug)]
+pub(crate) struct Registers {
+    /// General purpose registers
+    pub(crate) vn: [u8; 16],
+    /// Delay register - counts down at 60 hz
+    pub(crate) delay: u8,
+    /// Sound register - counts down at 60 hz
+    /// CHIP-8 plays a tone if it's set
+    pub(crate) sound: u8,
+    /// Program counter
+    pub(crate) pc: usize,
+    /// Stack pointer
+    pub(crate) sp: usize,
+    /// RAM pointer
+    pub(crate) i: usize,
+    /// When set, stores the register to store the next keypress in
+    pub(crate) key_flag: Option<usize>,
+}
+
+const CHAR_SPRITES: [u8; 16 * 5] = [
+    0xf0, 0x90, 0x90, 0x90, 0xf0, // 0
+    0x20, 0x60, 0x20, 0x20, 0x70, // 1
+    0xf0, 0x10, 0xf0, 0x80, 0xf0, // 2
+    0xf0, 0x10, 0xf0, 0x10, 0xf0, // 3
+    0x90, 0x90, 0xf0, 0x10, 0x10, // 4
+    0xf0, 0x80, 0xf0, 0x10, 0xf0, // 5
+    0xf0, 0x80, 0xf0, 0x90, 0xf0, // 6
+    0xf0, 0x10, 0x20, 0x40, 0x40, // 7
+    0xf0, 0x90, 0xf0, 0x90, 0xf0, // 8
+    0xf0, 0x90, 0xf0, 0x10, 0xf0, // 9
+    0xf0, 0x90, 0xf0, 0x90, 0x90, // A
+    0xe0, 0x90, 0xe0, 0x90, 0xe0, // B
+    0xf0, 0x80, 0x80, 0x80, 0xf0, // C
+    0xe0, 0x90, 0x90, 0x90, 0xe0, // D
+    0xf0, 0x80, 0xf0, 0x80, 0xf0, // E
+    0xf0, 0x80, 0xf0, 0x80, 0x80, // F
+];
+
+pub(crate) const DISPLAY_COLUMNS: usize = 64;
+pub(crate) const DISPLAY_ROWS: usize = 32;
 
 /////////////////////////////////////
 /// Memory

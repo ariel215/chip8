@@ -1,11 +1,9 @@
 use std::{
-    collections::HashMap,
-    sync::LazyLock,
-    time::{self, Duration},
+    collections::HashMap, sync::LazyLock, thread::sleep, time::{self, Duration, Instant}
 };
 
-use super::{print_memory, print_registers, Chip8Frontend, KeyInput};
-use crate::{emulator::INSTRUCTION_SIZE, Chip8, MEMORY_SIZE};
+use super::{print_memory, print_registers, KeyInput, FRAME_DURATION};
+use crate::{driver::{Chip8Driver, EmulatorMode}, emulator::{INSTRUCTION_SIZE, MEMORY_SIZE}, Chip8};
 use ::raylib::{
     self,
     audio::{RaylibAudio, Sound},
@@ -17,6 +15,10 @@ use ::raylib::{
     text::Font,
     RaylibBuilder, RaylibHandle, RaylibThread,
 };
+
+
+
+
 use bitvec::{array::BitArray, BitArr};
 use itertools::Itertools;
 
@@ -29,7 +31,105 @@ impl From<Vector2> for super::Vector {
     }
 }
 
-pub struct RaylibDisplay {
+pub(crate) struct RaylibDriver {
+    pub(crate) display: RaylibDisplay,
+    pub(crate) chip8: Chip8,
+    pub(crate) mode: EmulatorMode
+}
+
+impl Chip8Driver for RaylibDriver {
+    fn run(rom: &[u8], speed: Option<u64>, paused: bool) {
+        let mut driver = Self::new(speed, paused);
+        driver.load_rom(rom);
+        loop {
+            let start = Instant::now();
+            driver.step();
+            if driver.draw() {
+                return;
+            }
+            let elapsed = Instant::now().duration_since(start);
+            sleep(FRAME_DURATION - elapsed);
+        }
+    }
+}
+
+impl RaylibDriver {
+    pub fn new(speed: Option<u64>, paused: bool) -> Self {
+        Self {
+            chip8: Chip8::init(speed),
+            display: RaylibDisplay::default(),
+            mode: if paused {EmulatorMode::Paused} else {EmulatorMode::Running}
+        }
+    }
+
+    pub fn load_rom(&mut self, rom: &[u8]) {
+        self.chip8.load_rom(rom)
+    }
+
+    pub fn step_paused(&mut self) {
+        for k in self.display.get_inputs() {
+            match k {
+                KeyInput::Step => {
+                    self.chip8.do_instruction();
+                    self.chip8.tick_timers();
+                }
+                KeyInput::Chip8Key(val) => {
+                    self.chip8.clear_keys();
+                    self.chip8.set_key(val)
+                }
+                KeyInput::TogglePause => self.mode = EmulatorMode::Running,
+                KeyInput::ToggleDebug => self.display.toggle_debug(),
+                KeyInput::Click(position) => self.display.on_mouse_click(position),
+                KeyInput::Scroll(position, amount) => {
+                    self.display.on_mouse_scroll(position, amount);
+                }
+            }
+        }
+    }
+
+    pub fn step_running(&mut self) {
+        // At the beginning of each frame, we:
+        // - clear the key buffer
+        // - tick down the delay and sound registers
+        self.chip8.clear_keys();
+        self.chip8.tick_timers();
+
+        let cycles_per_frame = self.chip8.clock_speed / 60;
+        for _ in 0..cycles_per_frame {
+            for k in self.display.get_inputs() {
+                match k {
+                    KeyInput::Chip8Key(key) => self.chip8.set_key(key),
+                    KeyInput::Step => {},
+                    KeyInput::TogglePause => {
+                        self.mode = EmulatorMode::Paused;
+                        break;},
+                    KeyInput::ToggleDebug => self.display.toggle_debug(),
+                    _ => {}
+                }
+            }
+            if matches!(self.mode, EmulatorMode::Running) {
+                self.chip8.do_instruction();
+            }
+            if self.display.is_breakpoint(self.chip8.pc()) {
+                self.mode = EmulatorMode::Paused;
+            }
+        }
+    }
+
+    fn draw(&mut self) -> bool {
+        self.display
+            .update(&self.chip8, matches!(self.mode, EmulatorMode::Running))
+    }
+
+    pub fn step(&mut self) {
+        match self.mode {
+            EmulatorMode::Paused => self.step_paused(),
+            EmulatorMode::Running => self.step_running(),
+        };
+    }
+}
+
+pub(crate) struct RaylibDisplay {
     raylib_handle: RaylibHandle,
     raylib_thread: RaylibThread,
     raylib_sound: Option<Sound<'static>>,
@@ -233,7 +333,7 @@ fn times(v1: Vector2, v2: Vector2) -> Vector2 {
     vec2!(v1.x * v2.x, v1.y * v2.y)
 }
 
-impl super::Chip8Frontend for RaylibDisplay {
+impl RaylibDisplay {
     fn update(&mut self, chip8: &Chip8, show_current_instruction: bool) -> bool {
         self.keys_down = self
             .keys_down

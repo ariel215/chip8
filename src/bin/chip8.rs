@@ -1,10 +1,9 @@
 use cfg_if::cfg_if;
-use chip8::Chip8Driver;
+use chip8::driver;
 use std::io::Read;
 
 use clap::Parser;
 use clio::*;
-use wasm_bindgen::prelude::wasm_bindgen;
 
 #[derive(Parser)]
 struct Args {
@@ -27,16 +26,7 @@ pub fn main() {
             let mut input = args.rom.open().expect(&format!("No file named {}", rom_name));
             let mut instructions = Vec::new();
             input.read_to_end(&mut instructions).expect(&format!("Failed to read {}", rom_name ));
-            
-            cfg_if!{
-                if #[cfg(feature = "egui")] {
-                    Chip8Driver::run(args.speed, instructions, args.paused)
-                } else {
-                    let mut driver = Chip8Driver::new(args.speed, args.paused);
-                    driver.load_rom(&instructions);
-                    driver.run();
-                }
-            }
+            driver::run(&instructions, args.speed, args.paused);
         }
     }
 }

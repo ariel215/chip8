@@ -3,11 +3,11 @@ pub mod raylib;
 
 use itertools::Itertools;
 use std::cmp::max;
-use std::default;
 use std::ops::Range;
+use std::time::Duration;
 
 use crate::emulator::INSTRUCTION_SIZE;
-use crate::{Chip8, Instruction};
+use crate::{Chip8, instructions::Instruction};
 
 #[derive(Clone, Copy)]
 pub enum KeyInput {
@@ -40,6 +40,8 @@ pub trait Chip8Frontend {
     fn on_mouse_click(&mut self, position: Vector);
 
 }
+
+pub const FRAME_DURATION: Duration = Duration::from_millis(1000 / 60);
 
 fn print_memory(chip8: &Chip8) -> String {
     let window_before = 0;
