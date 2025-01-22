@@ -130,6 +130,7 @@ pub struct EguiDisplay {
 impl mq::EventHandler for EguiDriver {
     fn update(&mut self) {
         self.step();
+        self.display.inputs.clear();
     }
 
     fn draw(&mut self) {
@@ -139,6 +140,8 @@ impl mq::EventHandler for EguiDriver {
         self.mq_context.end_render_pass();
 
         self.display.update(&self.chip8,&mut self.egui_mq, &mut *self.mq_context, matches!(self.mode, EmulatorMode::Running));
+        self.egui_mq.draw(&mut *self.mq_context);
+        self.mq_context.commit_frame();
     }
     
     fn window_minimized_event(&mut self) {
@@ -309,29 +312,27 @@ impl EguiDisplay {
         egui_mq
             .run(&mut *mq_context, |_mq_ctx, egui_ctx| {
                 self.inputs = egui_ctx
-                .input(|i| i.keys_down.iter().map(|k| self.keymap[k]).collect());
+                    .input(|i| i.keys_down.iter()
+                    .filter_map(|k| self.keymap.get(k).cloned())
+                    .collect_vec()
+                );
                 egui::CentralPanel::default().show(egui_ctx, |ui| {
-                    if self.debug {
-                        ui.horizontal(|ui| {
-                            ui.vertical(|ui| {
-                                ui.add(Self::draw_screen(chip8))
-                                    | ui.add(Self::draw_instructions(
-                                        &self.instruction_window,
-                                        chip8,
-                                    ))
-                            })
-                            .response
-                                | (ui.vertical(|ui| {
-                                    ui.add(Self::draw_memory(chip8))
-                                        | ui.add(Self::draw_registers(chip8))
-                                }))
-                                .response
-                        })
-                        .inner
-                    } else {
-                        ui.add(Self::draw_screen(chip8))
-                    }
-                });
+                    let height = ui.available_height();
+                    let width = ui.available_width();
+                    if self.debug{
+                    egui::Grid::new("chip8")
+                        .min_row_height(height/2.0)
+                        .min_col_width(width/2.0).show(ui, |ui|{
+                        ui.add(Self::draw_screen(chip8));
+                        ui.add(Self::draw_memory(chip8));
+                        ui.end_row();
+                        ui.add(Self::draw_instructions(&self.instruction_window, chip8));
+                        ui.add(Self::draw_registers(chip8));
+                        ui.end_row();
+                    }).response
+                } else {
+                    ui.add(Self::draw_screen(chip8))
+                }});
             });
     }
 
