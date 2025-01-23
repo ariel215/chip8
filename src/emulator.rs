@@ -5,7 +5,7 @@ use instructions::Instruction;
 #[wasm_bindgen]
 pub struct Chip8 {
     pub(crate) clock_speed: u64, // Cycles per second,
-    pub (crate) memory: Memory,
+    pub(crate) memory: Memory,
     pub(crate) registers: Registers,
 }
 
@@ -66,7 +66,7 @@ pub(crate) const DISPLAY_ROWS: usize = 32;
 /// Memory
 /////////////////////////////////////
 
-cfg_if!{
+cfg_if! {
     if #[cfg(target_family = "wasm")]{
         use js_sys::Math;
         macro_rules! rand {
@@ -79,10 +79,9 @@ cfg_if!{
             () => {
                 rand::random::<u8>()
             };
-        }        
+        }
     }
 }
-
 
 #[inline]
 fn get_bit(char: u8, index: usize) -> bool {

@@ -1,8 +1,16 @@
 use std::{ops::Deref, process::exit};
 
-use crate::{driver::{Chip8Driver, EmulatorMode}, emulator::MEMORY_SIZE, Chip8, DISPLAY_COLUMNS, DISPLAY_ROWS};
+use crate::{
+    driver::{Chip8Driver, EmulatorMode},
+    emulator::MEMORY_SIZE,
+    Chip8, DISPLAY_COLUMNS, DISPLAY_ROWS,
+};
 use bitvec::{array::BitArray, BitArr};
-use egui::{ahash::HashMap, pos2, vec2, Color32, Key, Rect, Response, Rounding, Sense, Ui, Vec2};
+use egui::TextStyle::*;
+use egui::{
+    ahash::HashMap, pos2, vec2, Color32, FontId, Key, Layout, Rect, Response, Rounding, Sense, Ui,
+    Vec2,
+};
 use egui_miniquad::EguiMq;
 use itertools::Itertools;
 use miniquad as mq;
@@ -17,32 +25,48 @@ pub struct EguiDriver {
     egui_mq: egui_miniquad::EguiMq,
 }
 
-impl EguiDriver{
-
-
+impl EguiDriver {
     pub fn new(speed: Option<u64>, paused: bool) -> Self {
         let mut mq_context = mq::window::new_rendering_backend();
-        Self {
+        let mut driver = Self {
             chip8: Chip8::init(speed),
             display: EguiDisplay::default(),
-            mode: if paused {EmulatorMode::Paused} else {EmulatorMode::Running},
+            mode: if paused {
+                EmulatorMode::Paused
+            } else {
+                EmulatorMode::Running
+            },
             egui_mq: egui_miniquad::EguiMq::new(&mut *mq_context),
             mq_context,
-
-        }
+        };
+        driver
+            .egui_mq
+            .run(&mut *driver.mq_context, |_mq_ctx, egui_ctx| {
+                egui_ctx.style_mut(|style| {
+                    style.text_styles = [
+                        (Small, FontId::new(14.0, egui::FontFamily::Proportional)),
+                        (Body, FontId::new(20.0, egui::FontFamily::Proportional)),
+                        (Heading, FontId::new(32.0, egui::FontFamily::Proportional)),
+                        (Button, FontId::new(24.0, egui::FontFamily::Proportional)),
+                    ]
+                    .into()
+                });
+            });
+        driver.egui_mq.draw(&mut *driver.mq_context);
+        driver
     }
 
     pub fn load_rom(&mut self, rom: &[u8]) {
         self.chip8.load_rom(rom)
     }
-    
+
     pub fn step_paused(&mut self) {
         let mut toggle_debug = false;
         let mut click_position: Option<Vector> = None;
         let mut scroll_position: Option<Vector> = None;
         let mut scroll_amount = 0;
 
-        for k in &self.display.inputs{
+        for k in &self.display.inputs {
             match k {
                 KeyInput::Step => {
                     self.chip8.do_instruction();
@@ -53,8 +77,10 @@ impl EguiDriver{
                     self.chip8.set_key(*val)
                 }
                 KeyInput::TogglePause => self.mode = EmulatorMode::Running,
-                KeyInput::ToggleDebug => {toggle_debug = true;},
-                KeyInput::Click(position) => {click_position = Some(*position)},
+                KeyInput::ToggleDebug => {
+                    toggle_debug = true;
+                }
+                KeyInput::Click(position) => click_position = Some(*position),
                 KeyInput::Scroll(position, amount) => {
                     scroll_position = Some(*position);
                     scroll_amount = *amount
@@ -72,7 +98,6 @@ impl EguiDriver{
         if let Some(position) = scroll_position {
             self.display.on_mouse_scroll(position, scroll_amount);
         }
-
     }
 
     pub fn step_running(&mut self) {
@@ -88,11 +113,14 @@ impl EguiDriver{
             for k in &self.display.inputs {
                 match k {
                     KeyInput::Chip8Key(key) => self.chip8.set_key(*key),
-                    KeyInput::Step => {},
+                    KeyInput::Step => {}
                     KeyInput::TogglePause => {
                         self.mode = EmulatorMode::Paused;
-                        break;},
-                    KeyInput::ToggleDebug => {debug_pressed = true;}
+                        break;
+                    }
+                    KeyInput::ToggleDebug => {
+                        debug_pressed = true;
+                    }
                     _ => {}
                 }
             }
@@ -114,10 +142,7 @@ impl EguiDriver{
             EmulatorMode::Running => self.step_running(),
         };
     }
-
-
 }
-
 
 pub struct EguiDisplay {
     keymap: HashMap<Key, KeyInput>,
@@ -139,19 +164,24 @@ impl mq::EventHandler for EguiDriver {
             .begin_default_pass(mq::PassAction::clear_color(0.0, 0.0, 0.0, 1.0));
         self.mq_context.end_render_pass();
 
-        self.display.update(&self.chip8,&mut self.egui_mq, &mut *self.mq_context, matches!(self.mode, EmulatorMode::Running));
+        self.display.update(
+            &self.chip8,
+            &mut self.egui_mq,
+            &mut *self.mq_context,
+            matches!(self.mode, EmulatorMode::Running),
+        );
         self.egui_mq.draw(&mut *self.mq_context);
         self.mq_context.commit_frame();
     }
-    
+
     fn window_minimized_event(&mut self) {
         self.mode = EmulatorMode::Paused;
     }
-    
+
     fn window_restored_event(&mut self) {
         self.mode = EmulatorMode::Running;
     }
-    
+
     fn quit_requested_event(&mut self) {
         exit(0);
     }
@@ -164,39 +194,19 @@ impl mq::EventHandler for EguiDriver {
         self.egui_mq.mouse_wheel_event(dx, dy);
     }
 
-    fn mouse_button_down_event(
-        &mut self,
-        mb: mq::MouseButton,
-        x: f32,
-        y: f32,
-    ) {
+    fn mouse_button_down_event(&mut self, mb: mq::MouseButton, x: f32, y: f32) {
         self.egui_mq.mouse_button_down_event(mb, x, y);
     }
 
-    fn mouse_button_up_event(
-        &mut self,
-        mb: mq::MouseButton,
-        x: f32,
-        y: f32,
-    ) {
+    fn mouse_button_up_event(&mut self, mb: mq::MouseButton, x: f32, y: f32) {
         self.egui_mq.mouse_button_up_event(mb, x, y);
     }
 
-    fn char_event(
-        &mut self,
-        character: char,
-        _keymods: mq::KeyMods,
-        _repeat: bool,
-    ) {
+    fn char_event(&mut self, character: char, _keymods: mq::KeyMods, _repeat: bool) {
         self.egui_mq.char_event(character);
     }
 
-    fn key_down_event(
-        &mut self,
-        keycode: mq::KeyCode,
-        keymods: mq::KeyMods,
-        _repeat: bool,
-    ) {
+    fn key_down_event(&mut self, keycode: mq::KeyCode, keymods: mq::KeyMods, _repeat: bool) {
         self.egui_mq.key_down_event(keycode, keymods);
     }
 
@@ -209,14 +219,13 @@ impl Chip8Driver for EguiDriver {
     fn run(rom: &[u8], speed: Option<u64>, paused: bool) {
         let conf = mq::conf::Conf::default();
         let rom = Vec::from_iter(rom.iter().cloned());
-        mq::start(conf, move|| {
+        mq::start(conf, move || {
             let mut driver = Self::new(speed, paused);
             driver.load_rom(&rom);
             Box::new(driver)
         });
     }
 }
-
 
 impl EguiDisplay {
     const KEYMAP: [(Key, KeyInput); 20] = [
@@ -254,33 +263,51 @@ impl EguiDisplay {
             })
             .collect_vec();
         move |ui: &mut Ui| {
-            let height = ui.available_height();
-            let width = ui.available_width();
-            let pixel_height = height / DISPLAY_ROWS as f32;
-            let pixel_width = width / DISPLAY_COLUMNS as f32;
-            let draw_pixel = |x,y,shade: &Color32|{
-                ui.painter().rect_filled(Rect::from_min_size(pos2(x,y), vec2(pixel_width,pixel_height)), 
-                Rounding::ZERO,
-            *shade)
-            };
-            for (x,row) in colors.iter().enumerate(){
-                for (y, color) in row.iter().enumerate(){
-                    draw_pixel(x as f32 * pixel_width, y as f32 * pixel_height, color);
-                }
-            }
-            let (_, response) = ui.allocate_at_least(Vec2::ZERO, Sense::focusable_noninteractive());
-            response
+            ui.with_layout(
+                Layout::centered_and_justified(egui::Direction::TopDown),
+                |ui| {
+                    let height = ui.available_height();
+                    let width = ui.available_width();
+                    let pixel_height = height / DISPLAY_ROWS as f32;
+                    let pixel_width = width / DISPLAY_COLUMNS as f32;
+                    let draw_pixel = |x, y, shade: &Color32| {
+                        ui.painter().rect_filled(
+                            Rect::from_min_size(pos2(x, y), vec2(pixel_width, pixel_height)),
+                            Rounding::ZERO,
+                            *shade,
+                        )
+                    };
+                    for (x, row) in colors.iter().enumerate() {
+                        for (y, color) in row.iter().enumerate() {
+                            draw_pixel(x as f32 * pixel_width, y as f32 * pixel_height, color);
+                        }
+                    }
+                },
+            )
+            .response
         }
     }
 
     fn draw_memory(chip8: &Chip8) -> impl FnOnce(&mut Ui) -> Response {
         let text = print_memory(chip8);
-        move |ui| ui.label(text)
+        move |ui: &mut Ui| {
+            ui.with_layout(
+                Layout::centered_and_justified(egui::Direction::TopDown),
+                |ui| ui.label(text),
+            )
+            .response
+        }
     }
 
     fn draw_registers(chip8: &Chip8) -> impl FnOnce(&mut Ui) -> Response {
         let text = print_registers(chip8);
-        move |ui| ui.label(text)
+        move |ui: &mut Ui| {
+            ui.with_layout(
+                Layout::centered_and_justified(egui::Direction::TopDown),
+                |ui| ui.label(text),
+            )
+            .response
+        }
     }
 
     fn draw_instructions(
@@ -288,7 +315,13 @@ impl EguiDisplay {
         chip8: &Chip8,
     ) -> impl FnOnce(&mut Ui) -> Response {
         let lines = window.lines(chip8);
-        move |ui| ui.label(lines.iter().map(|(_addr, text)| text).join("\n"))
+        move |ui| {
+            ui.with_layout(
+                Layout::centered_and_justified(egui::Direction::TopDown),
+                |ui| ui.label(lines.iter().map(|(_addr, text)| text).join("\n")),
+            )
+            .response
+        }
     }
 }
 
@@ -305,35 +338,47 @@ impl Default for EguiDisplay {
 }
 
 impl EguiDisplay {
-    fn update(&mut self, chip8: &crate::Chip8, egui_mq: &mut EguiMq, mq_context: &mut mq::Context, show_current_instruction: bool) {
+    fn update(
+        &mut self,
+        chip8: &crate::Chip8,
+        egui_mq: &mut EguiMq,
+        mq_context: &mut mq::Context,
+        show_current_instruction: bool,
+    ) {
         if show_current_instruction {
             self.instruction_window.focus(chip8.pc());
         }
-        egui_mq
-            .run(&mut *mq_context, |_mq_ctx, egui_ctx| {
-                self.inputs = egui_ctx
-                    .input(|i| i.keys_down.iter()
-                    .filter_map(|k| self.keymap.get(k).cloned())
-                    .collect_vec()
-                );
-                egui::CentralPanel::default().show(egui_ctx, |ui| {
-                    let height = ui.available_height();
-                    let width = ui.available_width();
-                    if self.debug{
+        egui_mq.run(&mut *mq_context, |_mq_ctx, egui_ctx| {
+            if self.inputs.len() == 0 {
+                egui_ctx.input(|i| {
+                    for key in self.keymap.keys() {
+                        if i.key_pressed(*key) {
+                            self.inputs.push(self.keymap[key]);
+                        }
+                    }
+                })
+            }
+            egui::CentralPanel::default().show(egui_ctx, |ui| {
+                let height = ui.available_height();
+                let width = ui.available_width();
+                if self.debug {
                     egui::Grid::new("chip8")
-                        .min_row_height(height/2.0)
-                        .min_col_width(width/2.0).show(ui, |ui|{
-                        ui.add(Self::draw_screen(chip8));
-                        ui.add(Self::draw_memory(chip8));
-                        ui.end_row();
-                        ui.add(Self::draw_instructions(&self.instruction_window, chip8));
-                        ui.add(Self::draw_registers(chip8));
-                        ui.end_row();
-                    }).response
+                        .min_row_height(height / 2.0)
+                        .min_col_width(width / 2.0)
+                        .show(ui, |ui| {
+                            ui.add(Self::draw_screen(chip8));
+                            ui.add(Self::draw_memory(chip8));
+                            ui.end_row();
+                            ui.add(Self::draw_instructions(&self.instruction_window, chip8));
+                            ui.add(Self::draw_registers(chip8));
+                            ui.end_row();
+                        })
+                        .response
                 } else {
                     ui.add(Self::draw_screen(chip8))
-                }});
+                }
             });
+        });
     }
 
     fn toggle_debug(&mut self) {
@@ -350,5 +395,4 @@ impl EguiDisplay {
     }
 
     fn on_mouse_click(&mut self, position: super::Vector) {}
-    
 }

@@ -1,9 +1,16 @@
 use std::{
-    collections::HashMap, sync::LazyLock, thread::sleep, time::{self, Duration, Instant}
+    collections::HashMap,
+    sync::LazyLock,
+    thread::sleep,
+    time::{self, Duration, Instant},
 };
 
 use super::{print_memory, print_registers, KeyInput, FRAME_DURATION};
-use crate::{driver::{Chip8Driver, EmulatorMode}, emulator::{INSTRUCTION_SIZE, MEMORY_SIZE}, Chip8};
+use crate::{
+    driver::{Chip8Driver, EmulatorMode},
+    emulator::{INSTRUCTION_SIZE, MEMORY_SIZE},
+    Chip8,
+};
 use ::raylib::{
     self,
     audio::{RaylibAudio, Sound},
@@ -15,9 +22,6 @@ use ::raylib::{
     text::Font,
     RaylibBuilder, RaylibHandle, RaylibThread,
 };
-
-
-
 
 use bitvec::{array::BitArray, BitArr};
 use itertools::Itertools;
@@ -34,7 +38,7 @@ impl From<Vector2> for super::Vector {
 pub(crate) struct RaylibDriver {
     pub(crate) display: RaylibDisplay,
     pub(crate) chip8: Chip8,
-    pub(crate) mode: EmulatorMode
+    pub(crate) mode: EmulatorMode,
 }
 
 impl Chip8Driver for RaylibDriver {
@@ -58,7 +62,11 @@ impl RaylibDriver {
         Self {
             chip8: Chip8::init(speed),
             display: RaylibDisplay::default(),
-            mode: if paused {EmulatorMode::Paused} else {EmulatorMode::Running}
+            mode: if paused {
+                EmulatorMode::Paused
+            } else {
+                EmulatorMode::Running
+            },
         }
     }
 
@@ -99,10 +107,11 @@ impl RaylibDriver {
             for k in self.display.get_inputs() {
                 match k {
                     KeyInput::Chip8Key(key) => self.chip8.set_key(key),
-                    KeyInput::Step => {},
+                    KeyInput::Step => {}
                     KeyInput::TogglePause => {
                         self.mode = EmulatorMode::Paused;
-                        break;},
+                        break;
+                    }
                     KeyInput::ToggleDebug => self.display.toggle_debug(),
                     _ => {}
                 }
@@ -272,10 +281,9 @@ impl RaylibDisplay {
             Color::WHITE,
         );
     }
-
 }
 
-impl Default for RaylibDisplay{ 
+impl Default for RaylibDisplay {
     fn default() -> Self {
         let (mut rhandle, rthread) = RaylibBuilder::default()
             .width(Self::WINDOW_WIDTH)
@@ -312,7 +320,7 @@ impl Default for RaylibDisplay{
         let sound = wave.map(|w| AUDIO.new_sound_from_wave(&w).unwrap());
 
         let font = rhandle
-            .load_font(&rthread,"resources/fonts/VT323/VT323-Regular.ttf")
+            .load_font(&rthread, "resources/fonts/VT323/VT323-Regular.ttf")
             .unwrap();
         Self {
             raylib_handle: rhandle,
@@ -326,7 +334,6 @@ impl Default for RaylibDisplay{
             breakpoints: BitArray::ZERO,
         }
     }
-
 }
 
 fn times(v1: Vector2, v2: Vector2) -> Vector2 {
@@ -402,14 +409,13 @@ impl RaylibDisplay {
                 Self::draw_registers(chip8, screen_dims, &mut handle);
             }
         }
-        if let Some(sound) = self.raylib_sound.as_mut(){
+        if let Some(sound) = self.raylib_sound.as_mut() {
             if sound.is_playing() & !chip8.sound() {
                 sound.stop();
             }
             if !sound.is_playing() & chip8.sound() {
                 sound.play();
             }
-    
         }
 
         self.raylib_handle.window_should_close()
@@ -510,7 +516,6 @@ impl RaylibDisplay {
     fn is_breakpoint(&self, addr: usize) -> bool {
         return *self.breakpoints.get(addr).as_deref().unwrap_or(&false);
     }
-    
 }
 
 struct RaylibInstructionWindow {

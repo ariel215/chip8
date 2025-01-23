@@ -7,7 +7,7 @@ use std::ops::Range;
 use std::time::Duration;
 
 use crate::emulator::INSTRUCTION_SIZE;
-use crate::{Chip8, instructions::Instruction};
+use crate::{instructions::Instruction, Chip8};
 
 #[derive(Clone, Copy)]
 pub enum KeyInput {
@@ -38,7 +38,6 @@ pub trait Chip8Frontend {
     fn on_mouse_scroll(&mut self, position: Vector, direction: isize);
 
     fn on_mouse_click(&mut self, position: Vector);
-
 }
 
 pub const FRAME_DURATION: Duration = Duration::from_millis(1000 / 60);
@@ -87,7 +86,6 @@ fn print_registers(chip8: &Chip8) -> String {
         .map(|(v1, v2, v3, v4)| format!("{v1}\t{v2}\t{v3}\t{v4}\t"))
         .join("\n")
 }
-
 
 struct InstructionWindow {
     start_addr: usize,

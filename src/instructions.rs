@@ -127,7 +127,6 @@ pub enum Instruction {
     RegLoad(Reg), // Fill registers V0..Vx from memory, starting at I
 }
 
-
 macro_rules! get_arg {
     ($parts: expr, $index: expr) => {{
         let __arg_part = $parts.get($index);
