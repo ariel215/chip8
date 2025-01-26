@@ -1,12 +1,14 @@
 pub mod egui;
 pub mod raylib;
 
+use bitvec::array::BitArray;
+use bitvec::BitArr;
 use itertools::Itertools;
 use std::cmp::max;
 use std::ops::Range;
 use std::time::Duration;
 
-use crate::emulator::INSTRUCTION_SIZE;
+use crate::emulator::{INSTRUCTION_SIZE, MEMORY_SIZE};
 use crate::{instructions::Instruction, Chip8};
 
 #[derive(Clone, Copy)]
@@ -90,6 +92,7 @@ fn print_registers(chip8: &Chip8) -> String {
 struct InstructionWindow {
     start_addr: usize,
     len: usize,
+    breakpoints: BitArr!(for MEMORY_SIZE),
 }
 
 impl InstructionWindow {
@@ -136,6 +139,7 @@ impl Default for InstructionWindow {
         Self {
             start_addr: Self::BASE_ADDR,
             len: 8,
+            breakpoints: BitArray::ZERO,
         }
     }
 }

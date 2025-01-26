@@ -6,11 +6,11 @@ use crate::{
     Chip8, DISPLAY_COLUMNS, DISPLAY_ROWS,
 };
 use bitvec::{array::BitArray, BitArr};
-use egui::TextStyle::*;
 use egui::{
     ahash::HashMap, pos2, vec2, Color32, FontId, Key, Layout, Rect, Response, Rounding, Sense, Ui,
     Vec2,
 };
+use egui::{TextStyle::*, Widget};
 use egui_miniquad::EguiMq;
 use itertools::Itertools;
 use miniquad as mq;
@@ -148,7 +148,6 @@ pub struct EguiDisplay {
     keymap: HashMap<Key, KeyInput>,
     inputs: Vec<KeyInput>,
     debug: bool,
-    breakpoints: BitArr!(for MEMORY_SIZE),
     instruction_window: InstructionWindow,
 }
 
@@ -310,18 +309,47 @@ impl EguiDisplay {
         }
     }
 
-    fn draw_instructions(
-        window: &InstructionWindow,
+    fn draw_instructions<'display>(
+        window: &'display mut InstructionWindow,
         chip8: &Chip8,
-    ) -> impl FnOnce(&mut Ui) -> Response {
-        let lines = window.lines(chip8);
-        move |ui| {
-            ui.with_layout(
-                Layout::centered_and_justified(egui::Direction::TopDown),
-                |ui| ui.label(lines.iter().map(|(_addr, text)| text).join("\n")),
-            )
-            .response
+    ) -> impl Widget + 'display {
+        let lines: Vec<(usize, String)> = window.lines(chip8);
+        InstructionwindowWidget {
+            breakpoints: &mut window.breakpoints,
+            lines,
         }
+    }
+}
+
+struct InstructionwindowWidget<'display> {
+    breakpoints: &'display mut BitArr!(for MEMORY_SIZE),
+    lines: Vec<(usize, String)>,
+}
+
+impl<'a> Widget for &mut InstructionwindowWidget<'a> {
+    fn ui(self, ui: &mut Ui) -> Response {
+        ui.vertical_centered_justified(|ui| {
+            for (addr, asm) in self.lines.iter() {
+                let is_breakpoint = *self.breakpoints.get(*addr).unwrap();
+                let response = ui.label(asm).interact(Sense::click());
+                let left_center = response.rect.left_center();
+                let radius = 10.0;
+                if is_breakpoint {
+                    ui.painter()
+                        .circle_filled(left_center, radius, Color32::RED);
+                }
+                if response.clicked() {
+                    self.breakpoints.set(*addr, !is_breakpoint);
+                }
+            }
+        })
+        .response
+    }
+}
+
+impl<'a> Widget for InstructionwindowWidget<'a> {
+    fn ui(mut self, ui: &mut Ui) -> Response {
+        return (&mut self).ui(ui);
     }
 }
 
@@ -332,7 +360,6 @@ impl Default for EguiDisplay {
             inputs: vec![],
             debug: false,
             instruction_window: InstructionWindow::default(),
-            breakpoints: BitArray::ZERO,
         }
     }
 }
@@ -369,7 +396,9 @@ impl EguiDisplay {
                             ui.add(Self::draw_screen(chip8));
                             ui.add(Self::draw_memory(chip8));
                             ui.end_row();
-                            ui.add(Self::draw_instructions(&self.instruction_window, chip8));
+                            let instruction_widget =
+                                Self::draw_instructions(&mut self.instruction_window, chip8);
+                            ui.add(instruction_widget);
                             ui.add(Self::draw_registers(chip8));
                             ui.end_row();
                         })
@@ -386,8 +415,7 @@ impl EguiDisplay {
     }
 
     fn is_breakpoint(&self, addr: usize) -> bool {
-        // TODO: IMPLEMENT THIS
-        false
+        *self.instruction_window.breakpoints.get(addr).unwrap()
     }
 
     fn on_mouse_scroll(&mut self, position: super::Vector, direction: isize) {

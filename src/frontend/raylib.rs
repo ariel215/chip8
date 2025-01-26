@@ -514,7 +514,13 @@ impl RaylibDisplay {
     }
 
     fn is_breakpoint(&self, addr: usize) -> bool {
-        return *self.breakpoints.get(addr).as_deref().unwrap_or(&false);
+        return *self
+            .instruction_window
+            .window
+            .breakpoints
+            .get(addr)
+            .as_deref()
+            .unwrap_or(&false);
     }
 }
 
