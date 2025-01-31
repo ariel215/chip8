@@ -14,6 +14,8 @@ use egui::{TextStyle::*, Widget};
 use egui_miniquad::EguiMq;
 use itertools::Itertools;
 use miniquad as mq;
+use rfd::AsyncFileDialog;
+use async_std;
 
 use super::{print_memory, print_registers, InstructionWindow, KeyInput, Vector};
 
@@ -65,12 +67,12 @@ impl EguiDriver {
         let mut click_position: Option<Vector> = None;
         let mut scroll_position: Option<Vector> = None;
         let mut scroll_amount = 0;
-
-        for k in &self.display.inputs {
+        for k in &self.display.inputs.clone() {
             match k {
                 KeyInput::Step => {
                     self.chip8.do_instruction();
                     self.chip8.tick_timers();
+                    self.display.follow_instructions = true;
                 }
                 KeyInput::Chip8Key(val) => {
                     self.chip8.clear_keys();
@@ -83,7 +85,22 @@ impl EguiDriver {
                 KeyInput::Click(position) => click_position = Some(*position),
                 KeyInput::Scroll(position, amount) => {
                     scroll_position = Some(*position);
-                    scroll_amount = *amount
+                    scroll_amount = *amount;
+                    self.display.follow_instructions = false;
+                }
+                KeyInput::LoadROM => {
+                    let new_rom  = async_std::task::block_on( async {
+                        let file = AsyncFileDialog::new()
+                        .pick_file()
+                        .await;
+                        match file {
+                            Some(handle) => {Some(handle.read().await)},
+                            None => None
+                        }
+                    });
+                    if let Some(bytes) = &new_rom {
+                        self.load_rom(bytes);
+                    }
                 }
             }
         }
@@ -106,7 +123,6 @@ impl EguiDriver {
         // - tick down the delay and sound registers
         self.chip8.clear_keys();
         self.chip8.tick_timers();
-
         let cycles_per_frame = self.chip8.clock_speed / 60;
         for _ in 0..cycles_per_frame {
             let mut debug_pressed = false;
@@ -144,12 +160,16 @@ impl EguiDriver {
     }
 }
 
+
+
 pub struct EguiDisplay {
     keymap: HashMap<Key, KeyInput>,
     inputs: Vec<KeyInput>,
     debug: bool,
     instruction_window: InstructionWindow,
+    follow_instructions: bool 
 }
+
 
 impl mq::EventHandler for EguiDriver {
     fn update(&mut self) {
@@ -167,7 +187,7 @@ impl mq::EventHandler for EguiDriver {
             &self.chip8,
             &mut self.egui_mq,
             &mut *self.mq_context,
-            matches!(self.mode, EmulatorMode::Running),
+            self.display.follow_instructions
         );
         self.egui_mq.draw(&mut *self.mq_context);
         self.mq_context.commit_frame();
@@ -227,7 +247,7 @@ impl Chip8Driver for EguiDriver {
 }
 
 impl EguiDisplay {
-    const KEYMAP: [(Key, KeyInput); 20] = [
+    const KEYMAP: [(Key, KeyInput); 21] = [
         (Key::Num1, KeyInput::Chip8Key(0x1)),
         (Key::Num2, KeyInput::Chip8Key(0x2)),
         (Key::Num3, KeyInput::Chip8Key(0x3)),
@@ -248,6 +268,7 @@ impl EguiDisplay {
         (Key::P, KeyInput::TogglePause),
         (Key::Period, KeyInput::ToggleDebug),
         (Key::Enter, KeyInput::Step),
+        (Key::O, KeyInput::LoadROM),
     ];
 
     fn draw_screen(chip8: &Chip8) -> impl FnOnce(&mut Ui) -> Response {
@@ -360,6 +381,7 @@ impl Default for EguiDisplay {
             inputs: vec![],
             debug: false,
             instruction_window: InstructionWindow::default(),
+            follow_instructions: true
         }
     }
 }

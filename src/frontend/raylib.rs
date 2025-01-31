@@ -21,6 +21,7 @@ use ::raylib::{
     math::Rectangle,
     text::Font,
     RaylibBuilder, RaylibHandle, RaylibThread,
+    logging
 };
 
 use bitvec::{array::BitArray, BitArr};
@@ -71,7 +72,8 @@ impl RaylibDriver {
     }
 
     pub fn load_rom(&mut self, rom: &[u8]) {
-        self.chip8.load_rom(rom)
+        self.chip8.load_rom(rom);
+
     }
 
     pub fn step_paused(&mut self) {
@@ -91,6 +93,7 @@ impl RaylibDriver {
                 KeyInput::Scroll(position, amount) => {
                     self.display.on_mouse_scroll(position, amount);
                 }
+                other => print!("unknown key input: {:?}", other)
             }
         }
     }

@@ -185,7 +185,9 @@ impl Chip8 {
     }
 
     pub fn load_rom(&mut self, rom: &[u8]) {
+        self.memory = Memory::default();
         self.memory.load_rom(rom);
+        self.registers = Registers::default();
     }
 
     pub fn do_instruction(&mut self) {

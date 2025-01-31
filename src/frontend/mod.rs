@@ -11,7 +11,7 @@ use std::time::Duration;
 use crate::emulator::{INSTRUCTION_SIZE, MEMORY_SIZE};
 use crate::{instructions::Instruction, Chip8};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum KeyInput {
     Chip8Key(u8),
     Step,
@@ -19,9 +19,10 @@ pub enum KeyInput {
     ToggleDebug,
     Click(Vector),
     Scroll(Vector, isize),
+    LoadROM
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct Vector {
     x: f32,
