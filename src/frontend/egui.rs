@@ -1,21 +1,20 @@
-use std::{ops::Deref, process::exit};
+use std::{process::exit, sync::Arc};
 
 use crate::{
     driver::{Chip8Driver, EmulatorMode},
     emulator::MEMORY_SIZE,
     Chip8, DISPLAY_COLUMNS, DISPLAY_ROWS,
 };
-use bitvec::{array::BitArray, BitArr};
+use bitvec::BitArr;
 use egui::{
-    ahash::HashMap, pos2, vec2, Color32, FontId, Key, Layout, Rect, Response, Rounding, Sense, Ui,
-    Vec2,
+    ahash::HashMap, pos2, vec2, Color32, FontId, Key, Layout, Rect, Response, Rounding, Sense, Ui
 };
 use egui::{TextStyle::*, Widget};
 use egui_miniquad::EguiMq;
 use itertools::Itertools;
 use miniquad as mq;
 use rfd::AsyncFileDialog;
-use async_std;
+use async_std::{self, sync::Mutex};
 
 use super::{print_memory, print_registers, InstructionWindow, KeyInput, Vector};
 
@@ -67,6 +66,7 @@ impl EguiDriver {
         let mut click_position: Option<Vector> = None;
         let mut scroll_position: Option<Vector> = None;
         let mut scroll_amount = 0;
+        let new_rom: Arc<Mutex<Option<Vec<u8>>>> = Arc::new(Mutex::new(None));
         for k in &self.display.inputs.clone() {
             match k {
                 KeyInput::Step => {
@@ -89,21 +89,31 @@ impl EguiDriver {
                     self.display.follow_instructions = false;
                 }
                 KeyInput::LoadROM => {
-                    let new_rom  = async_std::task::block_on( async {
+                    let loaded = Arc::clone(&new_rom);
+                    async_std::task::block_on( async move {
+                        
                         let file = AsyncFileDialog::new()
                         .pick_file()
                         .await;
                         match file {
-                            Some(handle) => {Some(handle.read().await)},
-                            None => None
+                            Some(handle) => {
+                                let data = Some(handle.read().await);
+                                let mut guard = loaded.lock().await;
+                                *guard = data;
+                            }
+                            None => {}
                         }
                     });
-                    if let Some(bytes) = &new_rom {
-                        self.load_rom(bytes);
-                    }
                 }
             }
         }
+
+        if let Some(guard) = (*new_rom).try_lock(){
+            if let Some(bytes) = guard.as_ref() {
+                self.load_rom(&bytes);
+            }
+        }
+
         if toggle_debug {
             self.display.toggle_debug();
         }

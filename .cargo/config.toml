@@ -1,5 +1,2 @@
 [env]
 EMCC_CFLAGS = "-s ASYNCIFY -s USE_GLFW=3 -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2  -sEXPORTED_RUNTIME_METHODS=ccall,cwrap --no-entry -gsource-map"
-
-[build]
-target = "wasm32-unknown-emscripten"

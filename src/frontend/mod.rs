@@ -1,8 +1,6 @@
-pub mod egui;
-pub mod raylib;
-
 use bitvec::array::BitArray;
 use bitvec::BitArr;
+use cfg_if::cfg_if;
 use itertools::Itertools;
 use std::cmp::max;
 use std::ops::Range;
@@ -10,6 +8,17 @@ use std::time::Duration;
 
 use crate::emulator::{INSTRUCTION_SIZE, MEMORY_SIZE};
 use crate::{instructions::Instruction, Chip8};
+
+cfg_if!{
+    if #[cfg(any(feature = "egui", target_family = "wasm" ))]{
+        pub mod egui;
+    }
+    else {
+        pub mod raylib;
+    }
+}
+
+
 
 #[derive(Clone, Copy, Debug)]
 pub enum KeyInput {

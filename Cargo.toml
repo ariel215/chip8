@@ -18,20 +18,31 @@ crate-type = ["rlib","cdylib"]
 
 [dependencies]
 bitvec = "1.0.1"
-clap = { version = "4.5.9", features = ["derive"] }
+clap =  { version = "4.5.9", features = ["derive"] }
 clio = { version = "0.3.5", features = ["clap-parse"] }
 itertools = "0.13.0"
 ndarray = "0.15.6"
 rand = {version = "0.8.5"}
 getrandom = { version = "0.2.15", features = ["js"] }
 wasm-bindgen = {version="0.2.93"}
-raylib = "5.0.1"
 js-sys = "0.3.77"
 cfg-if = "1.0.0"
 lazy_static = "1.5.0"
-egui-miniquad = "0.15.0"
-miniquad = "0.4.0"
+egui-miniquad = { version = "0.15.0", optional = true}
+miniquad = { version = "0.4.0", optional = true }
+egui = { version = "0.28.1", optional = true }
+rfd = { version = "0.15.2", optional = true }
+async-std = { version = "1.13.0", optional = true }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+raylib = "5.0.1"
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+egui-miniquad ="0.15.0"
+miniquad =  "0.4.0"
 egui = "0.28.1"
+rfd = "0.15.2"
+async-std = "1.13.0"
 
 [features]
-egui = []
+egui = ["dep:egui", "dep:egui-miniquad", "dep:miniquad", "dep:rfd", "dep:async-std"]

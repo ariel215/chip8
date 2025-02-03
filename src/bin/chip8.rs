@@ -19,7 +19,7 @@ struct Args {
 pub fn main() {
     cfg_if! {
         if #[cfg(target_family = "wasm")] {
-            return();
+            driver::run(&[], None, true)
         } else {
             let args = Args::parse();
             let rom_name = args.rom.as_os_str().to_string_lossy().into_owned();
