@@ -2,10 +2,11 @@
 WHITESPACE=_{!NEWLINE~WHITE_SPACE}
 decimal = {ASCII_DIGIT+}
 hex = @{"0x" ~ ASCII_HEX_DIGIT+}
-number = @{#hex = hex | #decimal = decimal}
+number = { hex | decimal }
+label_char = @{!(":" | ";" | WHITE_SPACE)~ANY}
 
-register = @{^"V"~ASCII_HEX_DIGIT}
-label_name= @{(!":"~!WHITE_SPACE~ANY)+}
+register = @{^"V"~(ASCII_HEX_DIGIT)*}
+label_name= @{label_char +}
 label = {
     #name=label_name~":"
 }
@@ -58,9 +59,11 @@ lsh = {^"lsh"~register}
 skp = {^"skp"~register}
 sknp = {^"sknp"~register}
 
+bytes = {^"bytes"~hex+}
+
 instruction = {  (cls | ret | nop | jpoff | jump | se | sne | load 
                 |add | sub | or | and | xor | rsh | lsh | subn
-                | rnd | drw | skp | sknp)
+                | rnd | drw | skp | sknp | bytes)
 }
-line = {(label | (instruction~(";"?)) )~NEWLINE }
+line = {(label | (instruction~";"))~NEWLINE }
 file = _{SOI ~ line+ ~ EOI?}
