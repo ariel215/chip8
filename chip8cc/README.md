@@ -4,17 +4,13 @@ Chip8CC
 ### A C-like compiler for the Chip8
 
 
-
-
-
-
 ## Roadmap
 1. Labels (completed)
 1. static data:
     - BYTES pseudoinstruction
     - followed by 1 or more bytes in hex
     - terminated by a semicolon
-    - implement layout
+2. basic blocks / cfg 
 3. ISel
    - switch from chip8 ASM to low-level register IR
    - add pointers and pointer dereferencing

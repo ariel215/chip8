@@ -1,0 +1,146 @@
+WHITESPACE = _{WHITE_SPACE}
+
+break = {"break"}
+bool = {"bool"}
+case = {"case"}
+char = {"char"}
+continue = {"continue"}
+default = {"default"}
+do = {"do"}
+else = {"else"}
+false = {"false"}
+true = {"true"}
+for = {"for"}
+if = {"if"}
+int = {"int"}
+long = {"long"}
+return = {"return"}
+short = {"short"}
+switch = {"switch"}
+struct = {"struct"}
+static = {"static"}
+sizeof = {"sizeof"}
+void = {"void"}
+typedef = {"typedef"}
+union = {"union"}
+unsigned = {"unsigned"}
+while = {"while"}
+ptr = { "*" }
+ptr_op = {"->"}
+inc_op = {"++"}
+dec_op = {"--"}
+eq =  {"=="}
+neq = {"!="}
+
+hex = {"0"~("x"|"X")~ASCII_HEX_DIGIT+}
+decimal = {ASCII_DIGIT+}
+constant = {hex | decimal}
+escaped_quote = {"\\\""}
+quote = {"\""}
+string_literal = {"L"?~quote~((!quote~ANY)|escaped_quote)*~quote}
+
+
+ident = {(!ASCII_DIGIT~ANY)~ANY*} 
+type_name = {(char | short | int | long) } // FIXME PLEASE
+
+
+expression = {
+     prefix* ~ primary ~ postfix* ~ (infix ~ prefix* ~ primary ~ postfix* )* 
+}
+
+primary = _{constant | string_literal | ("("~ expression~")") | ident}
+
+postfix = {
+    "[" ~ expression ~ "]"
+    | "()"
+    | "(" ~ expression ~ (","~expression)* ~ ")"
+    | "." ~ ident
+    | ptr_op ~ ident
+    | inc_op 
+    | dec_op 
+}
+
+unary_op = {"&" | "*" | "+" | "-" | "~" | "!"}
+
+prefix = _{
+    inc_op 
+    | dec_op
+    | unary_op
+    | sizeof
+    | unary_op ~ cast*
+}
+
+cast = {("("~ type_name ~ ")")}
+
+mul = {
+    "*"
+    | "/"
+    | "%"
+}
+add = {"+" | "-"}
+assign = {"=" | "+=" | "-=" | "*=" | "/="}
+
+infix = _{add | mul | assign}
+
+// argument_expression_list  = {assignment_expression ~ (","~assignment_expression)*}
+
+// unary_expression = {
+//     postfix_expression 
+//     | inc_op ~ unary_expression
+//     | dec_op ~ unary_expression
+//     | unary_op ~ cast_expresion
+//     | "sizeof" ~ unary_expression
+//     | "sizeof" ~ "(" ~ type_name ~ ")"
+// }
+
+// cast_expresion = {
+//     ("(" ~ type_name ~ ")") * ~ unary_expression
+// }
+// mutiplicative_expression = {
+//     cast_expresion 
+//     | mutiplicative_expression ~ "*" ~ cast_expresion
+//     | mutiplicative_expression ~ "/" ~ cast_expresion
+//     | mutiplicative_expression ~ "%" ~ cast_expresion
+// }
+
+// additive_expression = {
+//     mutiplicative_expression 
+//     | additive_expression ~ "+"~ mutiplicative_expression
+//     | additive_expression ~ "-"~ mutiplicative_expression
+// }
+
+// expression = {additive_expression}
+
+
+// translation_unit = {external_decl+}
+
+// external_decl = {function_def | decl}
+// function_def = {
+//     decl_specs ~ declarator~decl_list~compound_stat
+//     | declarator ~ decl_list ~ compound_stat
+//     | decl_specs ~ declarator ~ compound_stat
+//     | declarator ~ compound_stat}
+
+// decl = {
+//     decl_specs~init_declarator_list?~";"
+// }
+
+// decl_list = {decl+}
+// decl_specs = {type_spec ~ decl_specs?}
+// type_spec = {type_const 
+// | struct_or_union_spec
+// | enum_spec
+// | typedef_name}
+
+// struct_decl_list = {struct_decl + }
+// struct_or_union_spec = {
+//     struct_or_union ~ id ~ "{" ~ struct_decl_list~"}"
+//     | struct_or_union ~ "{" ~ struct_decl_list ~"}" 
+//     | struct_or_union ~ id
+// }
+
+// struct_or_union = {struct | union}
+
+// init_declarator_list = {init_declarator ~ ("," ~ init_declarator)*}
+// init_declarator = {declarator ~("=" initializer)?}
+

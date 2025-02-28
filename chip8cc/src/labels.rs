@@ -19,12 +19,13 @@ pub struct InstructionParser;
 pub type Error = pest::error::Error<Rule>;
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum Line {
+pub enum Line {
     Instr(Instruction),
     Data(Vec<u8>),
+    Label
 }
 
-pub type ParseResult<'a> = Result<(Line, Option<&'a str>), Error>;
+pub type ParseResult<'a, T=Line> = Result<(T, Option<&'a str>), Error>;
 
 pub struct Program<'a> {
     /// The program instructions in the order that they appear.
@@ -44,15 +45,17 @@ impl<'a> Program<'a> {
         for (usage, label) in self.references.iter().enumerate() {
             if let Some(label) = *label {
                 let target = self.labels[label];
-                let sizes = &self.instructions[..target]
+                let sizes = self.instructions[..target]
                     .iter()
                     .map(|l| match l {
                         Line::Instr(_) => INSTRUCTION_SIZE,
                         Line::Data(data) => data.len(),
+                        Line::Label => 0
                     })
                     .collect_vec();
                 let total_size = sizes.into_iter().sum::<usize>();
                 let new_addr = (total_size + 0x200) as u16;
+                dbg!(new_addr);
                 let new_instruction = match self.instructions[usage] {
                     Line::Instr(Instruction::Call(_)) => Instruction::Call(new_addr),
                     Line::Instr(Instruction::Jump(_)) => Instruction::Jump(new_addr),
@@ -76,6 +79,7 @@ impl<'a> Program<'a> {
                 Line::Data(data) => {
                     bytes.extend_from_slice(data);
                 }
+                _ => {}
             }
         }
         bytes
@@ -184,20 +188,19 @@ fn parse_binop<'a>(pair: Pair<'a, Rule>) -> ParseResult<'a> {
     ))
 }
 
-fn parse_addr<'a>(addr: Pairs<'a, Rule>) -> (u16, Option<&'a str>) {
+fn parse_addr<'a>(addr: Pairs<'a, Rule>) -> ParseResult<'a, u16> {
     if let Some(fixed_addr) = addr.find_first_tagged("fixed") {
-        let fixed_addr = fixed_addr.as_str().parse().unwrap();
-        return (fixed_addr, None);
+        return parse_u16(&fixed_addr).map(|result|(result, None))
     }
     if let Some(label) = addr.find_first_tagged("label") {
-        return (0, Some(label.as_str()));
+        return Ok((0, Some(label.as_str())));
     }
     unreachable!()
 }
 
 fn parse_call<'a>(mut call: Pairs<'a, Rule>) -> ParseResult {
     let addr = call.nth(1).unwrap().into_inner();
-    let addr = parse_addr(addr);
+    let addr = parse_addr(addr)?;
     return Ok((Line::Instr(Instruction::Call(addr.0)), addr.1));
 }
 
@@ -205,7 +208,7 @@ fn parse_jump<'a>(jump: Pair<'a, Rule>) -> ParseResult {
     let rule = jump.as_rule();
     let mut jump_in = jump.clone().into_inner();
     let addr = jump_in.next().unwrap().into_inner();
-    let addr = parse_addr(addr);
+    let addr = parse_addr(addr)?;
     Ok((
         Line::Instr(match rule {
             Rule::jump => Instruction::Jump(addr.0),
@@ -219,7 +222,7 @@ fn parse_jump<'a>(jump: Pair<'a, Rule>) -> ParseResult {
 fn parse_draw<'a>(mut draw: Pairs<'a, Rule>) -> ParseResult {
     let r1 = register(&draw.nth(1).unwrap())?;
     let r2 = register(&draw.nth(1).unwrap())?;
-    let n = draw.nth(1).unwrap().as_str().parse().unwrap();
+    let n = parse_u8(&draw.nth(1).unwrap())?;
     return Ok((Line::Instr(Instruction::Draw(r1, r2, n)), None));
 }
 
@@ -245,7 +248,7 @@ fn parse_load<'a>(load_args: Pair<'a, Rule>) -> ParseResult<'a> {
         Line::Instr(match pair.as_rule() {
             Rule::ldchar => Instruction::SetChar(register(&arg0)?),
             Rule::bcd => Instruction::BCD(register(&arg0)?),
-            Rule::ldmem => Instruction::SetMemPtr(arg0.as_str().parse().unwrap()),
+            Rule::ldmem => Instruction::SetMemPtr(parse_u16(&arg0)?),
             Rule::setdelay => Instruction::SetDelay(register(&arg0)?),
             Rule::getdelay => Instruction::GetDelay(register(&arg0)?),
             Rule::setsound => Instruction::SetSound(register(&arg0)?),
@@ -298,6 +301,27 @@ fn parse_instruction<'a>(pair: Pair<'a, Rule>) -> ParseResult {
     }
 }
 
+fn parse_line<'a> (line: Pair<'a, Rule>) -> ParseResult {
+    let label_instr = line.clone().into_inner().next().unwrap();
+    match label_instr.as_rule() {
+        Rule::instruction => {
+            parse_instruction(label_instr.into_inner().next().unwrap())
+        },
+        Rule::label => {
+            let name = label_instr.into_inner().next().unwrap().as_str();
+            Ok((Line::Label,Some(name)))
+        },
+        rule => {
+            return Err(Error::new_from_pos(
+                ErrorVariant::CustomError {
+                    message: format!("unexpected rule: {:?}", rule),
+                },
+                label_instr.as_span().start_pos(),
+            ))
+        }
+    }
+}
+
 pub fn parse_program(file: &str) -> Result<Program, Error> {
     match InstructionParser::parse(Rule::file, file) {
         Ok(file) => {
@@ -309,32 +333,22 @@ pub fn parse_program(file: &str) -> Result<Program, Error> {
             for line in file {
                 match line.as_rule() {
                     Rule::line => {
-                        let label_instr = line.clone().into_inner().next().unwrap();
-                        match label_instr.as_rule() {
-                            Rule::instruction => {
-                                match parse_instruction(label_instr.into_inner().next().unwrap()) {
-                                    Ok((instruction, reference)) => {
-                                        program.instructions.push(instruction);
-                                        program.references.push(reference);
-                                    }
-                                    Err(e) => return Err(e),
-                                }
+                        let parsed_line = parse_line(line.clone())?;
+                        match parsed_line.0 {
+                            Line::Instr(ref instruction) => {
+                                program.instructions.push(parsed_line.0);
+                                program.references.push(parsed_line.1);
+                            },
+                            Line::Data(ref items) => {
+                                program.instructions.push(parsed_line.0);
+                                program.references.push(None);
                             }
-                            Rule::label => {
+                            Line::Label => {
                                 program.labels.insert(
-                                    label_instr.as_str().strip_suffix(":").unwrap(),
-                                    program.instructions.len(),
+                                    parsed_line.1.unwrap(),
+                                    program.instructions.len()
                                 );
-                            }
-                            rule => {
-                                return Err(Error::new_from_pos(
-                                    ErrorVariant::CustomError {
-                                        message: format!("unexpected rule: {:?}", rule),
-                                    },
-                                    label_instr.as_span().start_pos(),
-                                ))
-                            }
-                        }
+                            }                        }
                     }
                     Rule::EOI => {
                         break;
@@ -359,6 +373,27 @@ pub fn parse_program(file: &str) -> Result<Program, Error> {
 mod tests {
     use crate::labels::Line;
     use chip8::Instruction;
+    use pest::Parser;
+
+    use super::{InstructionParser, Rule};
+
+    macro_rules! testcase {
+        ($name:ident, $rule:expr, $input:literal) => {
+            #[test]
+            fn $name(){
+                let pairs = InstructionParser::parse($rule, $input);
+                assert!(pairs.is_ok())
+            }
+        };
+    }
+
+
+    testcase!(test_ld_immediate, Rule::load, "ld v0 1");
+    testcase!(test_ld_memory, Rule::load, "ld I 100");
+    testcase!(test_ld_reg, Rule::load, "ld v1 v2");
+    testcase!(test_bcd, Rule::load, "ld b v1");
+    testcase!(test_regdmp, Rule::load, "ld [i] v0");
+    testcase!(test_regload, Rule::load, "ld v0 [i]");
 
     #[test]
     fn test_parse1() {
@@ -396,6 +431,9 @@ jp start;
 "#;
         let mut program = super::parse_program(&instructions).unwrap();
         assert_eq!(program.instructions.len(), 8);
+        dbg!(&program.instructions);
+        dbg!(&program.labels);
+        dbg!(&program.references);
         program.fix_references();
         assert_eq!(program.instructions.len(), 8);
         let last = Line::Instr(Instruction::Jump(0x200));

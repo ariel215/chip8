@@ -9,6 +9,7 @@ edition = "2021"
 crate-type= ["rlib"]
 
 [dependencies]
+bumpalo = { version = "3.17.0", features = ["boxed"] }
 chip8 = {path = ".."}
 clap = "4.5.20"
 clio = "0.3.5"
