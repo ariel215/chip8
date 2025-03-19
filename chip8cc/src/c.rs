@@ -70,10 +70,6 @@ struct ScopeId(usize);
 
 
 
-
-
-
-
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 enum Value{
     Identifier{name: String},
@@ -83,29 +79,39 @@ enum Value{
 
 type BoxExpr<'a> = BBox<'a, Expression<'a>>;
 
+#[derive(Debug)]
 struct UnaryExpression<'a>{
     operand: BoxExpr<'a>,
     operation: Operation
 }
 
+#[derive(Debug)]
 struct BinaryExpression<'a> {
     left: BoxExpr<'a>,
     right: BoxExpr<'a>,
     operation: Operation
 }
 
+#[derive(Debug)]
+struct ExpressionList<'a> {
+    expressions: Vec<BoxExpr<'a>>,
+}
+
+
 #[derive(Debug, Clone, Copy)]
 enum Operation {
     // Unary operations
-    Inc,
-    Dec,
-    Sizeof,
-    Positive,
-    Negative,
-    AddrOf,
-    Deref,
-    Complement,
-    Not,
+    Inc, // ++
+    Dec, // --
+    Sizeof, //  sizeof
+    Positive, // +
+    Negative, //-
+    AddrOf,// &
+    Deref, // *
+    Complement, //~
+    Not, // !,
+    FieldOf, // .
+    Index, // []
     // Binary operations
     Add,
     Sub,
@@ -123,7 +129,10 @@ enum Operation {
     BinaryXor,
     LogicalAnd,
     LogicalOr,
-    Assign(AssignmentOp)  
+    Call,
+    Comma,
+    Assign(AssignmentOp)
+      
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -138,17 +147,12 @@ enum AssignmentOp{
     OrEq
 }
 
+#[derive(Debug)]
 enum Expression<'a>{
     Primitive(Value),
     Unary(UnaryExpression<'a>),
     Binary(BinaryExpression<'a>),
 }
-
-
-fn walk_tree<Expr, F>(tree: Expr, fun: F)-> O
-    where Expr: Deref<Expression>, F: FnMut(&Expr)->O{
-        
-    }
 
 
 macro_rules! left {
@@ -208,9 +212,9 @@ fn parse_string<'a>(string: Pairs<'a, Rule>) -> String {
 
 fn parse_expression<'input, 'arena>(arena: &'arena Bump, expression: Pairs<'input, Rule>)->BoxExpr<'arena>{
     let pratt = PrattParser::new()
-        .op(Op::infix(Rule::mul, pratt_parser::Assoc::Left))
-        .op(Op::infix(Rule::add, pratt_parser::Assoc::Left))
-        .op(Op::infix(Rule::assign, pratt_parser::Assoc::Right))
+    .op(Op::infix(Rule::assign, pratt_parser::Assoc::Right))
+    .op(Op::infix(Rule::add, pratt_parser::Assoc::Left))
+    .op(Op::infix(Rule::mul, pratt_parser::Assoc::Left) )
         .op(Op::prefix(Rule::prefix))
         .op(Op::postfix(Rule::postfix));
 
@@ -232,7 +236,7 @@ fn parse_expression<'input, 'arena>(arena: &'arena Bump, expression: Pairs<'inpu
             _ => panic!("unexpected rule {:?}", primary.as_rule())
         }
     })
-    .map_infix(|left, infix, right| {
+    .map_infix(|left, infix, right: BBox<'_, Expression<'_>>| {
         let operation = match infix.as_str(){
             "*" => Operation::Mul,
             "/" => Operation::Div,
@@ -244,8 +248,14 @@ fn parse_expression<'input, 'arena>(arena: &'arena Bump, expression: Pairs<'inpu
             "-=" => Operation::Assign(AssignmentOp::SubEq),
             "*=" => Operation::Assign(AssignmentOp::MulEq),
             "/=" => Operation::Assign(AssignmentOp::DivEq),
-            _ => panic!("unknown binary operator {:?}", infix)
+            "." => Operation::FieldOf,
+            "->" => Operation::FieldOf,
+            "[" => Operation::Index,
+            "(" => Operation::Call,
+            _ => panic!("unknown operator {:?}", infix.as_str())
         };
+        // Handle the case of function calls and array indexing
+        
         BBox::new_in(Expression::Binary(BinaryExpression{left, right, operation}),
             arena
     )
@@ -271,6 +281,17 @@ fn parse_expression<'input, 'arena>(arena: &'arena Bump, expression: Pairs<'inpu
             operand: suffix
         }), arena)
     })
+    .map_postfix(|expression, postfix|{
+        match postfix.as_rule(){
+            Rule::inc_op | Rule::dec_op => {
+                let op = if postfix.as_str() == "++" { Operation::Inc } else { Operation::Dec };
+                return BBox::new_in(Expression::Unary(UnaryExpression{
+                    operation: op,
+                    operand: expression
+                }), arena)
+            },
+            _ => panic!("unknown postfix operator {:?}", postfix)
+    }})
     .parse(expression)
 }
 
@@ -296,7 +317,6 @@ mod tests{
     test_parser!(test_field, Rule::expression, "x.y");
     test_parser!(test_call, Rule::expression, "fn()");
     test_parser!(test_call_args, Rule::expression, "fn(1,2,x)");
-
     test_parser!(test_assign, Rule::expression, "x = y + 3");
 
     // test_parser!(test_decl_simple, Rule::decl, "int x");
@@ -332,14 +352,130 @@ mod tests{
         }
     }
 
+    #[test]
     fn test_precedence_add_mul(){
         let arena = Bump::new();
         let input = "1 * 2 + 3 * 4";
         let expression =  CParser::parse(Rule::expression, input).unwrap();
         let root = parse_expression(&arena, expression);
-        assert!(matches!(operation!(*root), Some(Operation::Add)));
+        assert!(matches!(operation!(*root), Some(Operation::Add)), "{:?}", operation!(*root));
         let left = left!(*root).unwrap();
-        assert!(matches!(operation!(**left), Some(Operation::Mul)))
+        assert!(matches!(operation!(**left), Some(Operation::Mul)), "{:?} should be Mul", operation!(**left));
+        let right = right!(*root).unwrap();
+        assert!(matches!(operation!(**right), Some(Operation::Mul)), "{:?} should be Mul", operation!(**right));
     }
+
+    #[test]
+    fn test_expressions(){
+        let arena = Bump::new();
+        let input = "1 + 2 * 3 - 4 / 5";
+        let expression = CParser::parse(Rule::expression, input).unwrap();
+        let root = parse_expression(&arena, expression);
+        assert!(matches!(operation!(*root), Some(Operation::Sub)));
+        let left = left!(*root).unwrap();
+        assert!(matches!(operation!(**left), Some(Operation::Add)));
+        let right = right!(*root).unwrap();
+        assert!(matches!(operation!(**right), Some(Operation::Div)));
+    }
+
+    #[test]
+    fn test_ident_add(){
+        let arena = Bump::new();
+        let input = "x + y";
+        let expression = CParser::parse(Rule::expression, input).unwrap();
+        let root = parse_expression(&arena, expression);
+        assert!(matches!(operation!(*root), Some(Operation::Add)), "{:?}", *root);
+        let left = left!(*root).unwrap();
+        assert!(matches!(**left, Expression::Primitive(Value::Identifier { name: _ })), "{:?}", **left);
+        let right = right!(*root).unwrap();
+        assert!(matches!(**right, Expression::Primitive(Value::Identifier { name: _ })), "{:?}", **right);
+    }
+
+
+    #[test]
+    fn test_assignments(){
+        let arena = Bump::new();
+        let input = "x = y + 3";
+        let expression = CParser::parse(Rule::expression, input).unwrap();
+        let root = parse_expression(&arena, expression);
+        assert!(matches!(operation!(*root), Some(Operation::Assign(AssignmentOp::Eq))), "got {:?}", operation!(*root));
+        let left = left!(*root).unwrap();
+        assert!(matches!(operation!(**left), None), "{:?}", operation!(**left));
+        let right = right!(*root).unwrap();
+        assert!(matches!(operation!(**right), Some(Operation::Add)), "{:?}", operation!(**right));
+    }
+
+    #[test]
+    fn test_assignments_chained(){
+        let arena = Bump::new();
+        let input = "x = y = 3";
+        let expression = CParser::parse(Rule::expression, input).unwrap();
+        let root = parse_expression(&arena, expression);
+        assert!(matches!(operation!(*root), Some(Operation::Assign(AssignmentOp::Eq))));
+        let left = left!(*root).unwrap();
+        assert!(matches!(operation!(**left), None), "{:?}", operation!(**left));
+        let right = right!(*root).unwrap();
+        assert!(matches!(operation!(**right), Some(Operation::Assign(AssignmentOp::Eq))), "{:?}", operation!(**right));
+    }
+
+
+    #[test]
+    fn test_member_access(){
+        let arena = Bump::new();
+        let input = "x.y";
+        let expression = CParser::parse(Rule::expression, input).unwrap();
+        let root = parse_expression(&arena, expression);
+        assert!(matches!(operation!(*root), Some(Operation::FieldOf)), "{:?}", operation!(*root));
+        let left = left!(*root).unwrap();
+        assert!(matches!(**left, Expression::Primitive(Value::Identifier { name: _ })), "{:?}", **left);
+    }
+
+    #[test]
+    fn test_ptr_access(){
+        let arena = Bump::new();
+        let input = "x->y";
+        let expression = CParser::parse(Rule::expression, input).unwrap();
+        let root = parse_expression(&arena, expression);
+        assert!(matches!(operation!(*root), Some(Operation::FieldOf)), "{:?}", operation!(*root));
+        let left = left!(*root).unwrap();
+        assert!(matches!(**left, Expression::Unary(_)), "{:?}", **left);
+    }
+
+    #[test]
+    fn test_function_call(){
+        let arena = Bump::new();
+        let input = "fn(1,2,x)";
+        let expression = CParser::parse(Rule::expression, input).unwrap();
+        let root = parse_expression(&arena, expression);
+        assert!(matches!(operation!(*root), Some(Operation::Call)), "{:?}", operation!(*root));
+        let left = left!(*root).unwrap();
+        assert!(matches!(**left, Expression::Primitive(Value::Identifier { name: _ })), "{:?}", **left);
+        let right = right!(*root).unwrap();
+        assert!(matches!(operation!(**right), Some(Operation::Comma)), "{:?}", operation!(**right));
+    }
+
+    #[test]
+    fn test_function_call_no_args(){
+        let arena = Bump::new();
+        let input = "fn()";
+        let expression = CParser::parse(Rule::expression, input).unwrap();
+        let root = parse_expression(&arena, expression);
+        assert!(matches!(operation!(*root), Some(Operation::Call)), "{:?}", *root);
+        assert!(matches!(*root, Expression::Unary(_)), "{:?}", *root);
+    }
+
+    #[test]
+    fn test_array_index(){
+        let arena = Bump::new();
+        let input = "arr[1]";
+        let expression = CParser::parse(Rule::expression, input).unwrap();
+        let root = parse_expression(&arena, expression);
+        assert!(matches!(operation!(*root), Some(Operation::Index)), "{:?}", operation!(*root));
+        let left = left!(*root).unwrap();
+        assert!(matches!(**left, Expression::Primitive(Value::Identifier { name: _ })), "{:?}", **left);
+        let right = right!(*root).unwrap();
+        assert!(matches!(**right, Expression::Primitive(Value::Constant { value: _ })), "{:?}", **right);
+    }
+    
 
 }
