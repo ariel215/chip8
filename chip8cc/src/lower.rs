@@ -12,6 +12,7 @@ struct LoweringVisitor<'a> {
 #[derive(Debug, Clone, Copy)]
 struct Register(u8);
 
+#[derive(Debug)]
 enum Value{
     Number(u8),
     Reg(Register)
@@ -47,7 +48,7 @@ impl<'a> LoweringVisitor<'a> {
     }
 
     fn create_temp(&mut self) -> Value{
-        let count = self.temp_vars.len() as u8;
+        let count = u8::MAX - (self.temp_vars.len() as u8);
         let name = format!(".temp{}", count);
         self.temp_vars.insert(name, Register(count));
         Value::Reg(Register(count))
@@ -57,7 +58,7 @@ impl<'a> LoweringVisitor<'a> {
 
         
     fn lower_node(&mut self, node: &'a ParseNode,) -> Option<Value> {
-        match node {
+        let result = match node {
             ParseNode::Unsigned(v) => Some(Value::Number(*v)),
             ParseNode::Signed(v) => Some(Value::Number(*v as u8)),
             ParseNode::Var(ref name) => Some(self.get_or_create_register(name.as_str())),
@@ -115,7 +116,9 @@ impl<'a> LoweringVisitor<'a> {
                     }
                 }
             }
-        }
+        };
+        println!("visiting {:?}; got {:?}", node, result);
+        result
     }
 }
 

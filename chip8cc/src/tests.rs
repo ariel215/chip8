@@ -32,5 +32,16 @@ fn test_add_1(){
     let (_, nodes) = parse_statements(input).unwrap();
     assert!(nodes.len() == 1);
     let instructions = lower(&nodes);
-    assert!(instructions.len() == 3)
+    assert!(instructions.len() == 3);
+    println!("result: {:?}", instructions);
+}
+
+
+#[test]
+fn test_add_multiple(){
+    let input = "x =  1 + 2 - 3 + z;";
+    let (_, nodes) = parse_statements(input).unwrap();
+    let instructions = lower(&nodes);
+    dbg!(&instructions);
+    assert!(instructions.len() == 6);
 }

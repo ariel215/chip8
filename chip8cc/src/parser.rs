@@ -5,21 +5,21 @@ use nom_supreme::{
 };
 use anyhow::Context;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Operator{
     Assign,
     Plus,
     Minus
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct  BinaryOp{
     pub operator: Operator,
     pub left: Box<ParseNode>,
     pub right: Box<ParseNode>
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ParseNode{
     Unsigned(u8), 
     Signed(i8),
@@ -27,8 +27,10 @@ pub enum ParseNode{
     Binary(
         BinaryOp
     )
-
 }
+
+
+
 
 type PResult<I, O> = nom::IResult<I, O, ErrorTree<I>>;
 
@@ -59,26 +61,25 @@ pub fn parse_variable(input: &str) -> PResult<&str, ParseNode>{
 }
 
 pub fn parse_expression(input: &str) -> PResult<&str, ParseNode>{
-    let left = alt(
+    let terminal1 = alt(
         (parse_number,parse_variable)
     ).terminated(multispace0);
+    let terminal2 = alt(
+        (parse_number,parse_variable)
+    ).terminated(multispace0);
+
     let operator = alt((tag("+"), tag("-"))).map(
         |op | if op == "+" {Operator::Plus} else {Operator::Minus});
     tuple((
-        left, 
-        multispace0,
-        opt(tuple((
-            operator,
-            multispace0,
-            parse_expression
-        ))))
-    ).map(|(left, _, maybe_right)|{
-        if let Some((operator, _ , right)) = maybe_right {
-            ParseNode::Binary(BinaryOp { operator, left: Box::new(left), right: Box::new(right) })
-        } else {
-            left
-        }
-    }).parse(input) 
+        terminal1,
+        multi::many0(
+            tuple((multispace0, operator, multispace0, terminal2))
+        )
+    )).map(|(left, right): (ParseNode, Vec<(&str, Operator, &str, ParseNode)>)|{
+        right.into_iter().fold(left, |acc,  (_, op, _, right)| {
+            ParseNode::Binary(BinaryOp { operator: op, left: Box::new(acc), right: Box::new(right) })
+        })
+    }).parse(input)
 }
 
 
@@ -131,6 +132,39 @@ mod tests {
         ($parser: ident, $input: expr) => {
             let result = $parser($input);
             assert!(result.is_err(), "{:?} parsed as {:?}", $input, result);
+        };
+    }
+
+        
+    macro_rules! u {
+        ($val: expr) => {
+            ParseNode::Unsigned($val)
+        };
+    }
+
+    macro_rules! var {
+        ($val: expr) => {
+            ParseNode::Var($val.to_string())
+        };
+    }
+
+    macro_rules! plus {
+        ($l: expr, $r: expr) => {
+            ParseNode::Binary(BinaryOp{
+                operator: Operator::Plus,
+                left: Box::new($l),
+                right: Box::new($r)
+            })
+        };
+    }
+
+    macro_rules! assign {        
+        ($l: expr, $r: expr) => {
+            ParseNode::Binary(BinaryOp{
+                operator: Operator::Assign,
+                left: Box::new($l),
+                right: Box::new($r)
+            })
         };
     }
 
@@ -204,6 +238,15 @@ mod tests {
         }
         else {panic!("bad root")}
     }
+
+    #[test]
+    fn test_parse_add_multiple(){
+        let input = "x = 1 + 2 + 3 + z";
+        passes!(parse_assign, input);
+        let (_, result) = parse_assign(input).unwrap();
+        assert_eq!(result, assign!(var!("x"), plus!(plus!(plus!(u!(1),u!(2)),u!(3)), var!("z"))));
+    }
+
 
     #[test]
     fn test_parse_statements(){
