@@ -1,8 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    hash::Hash,
-    ops::Range,
-};
+use std::{collections::HashMap, hash::Hash};
 
 use chippy_lib::{Instruction, INSTRUCTION_SIZE};
 use itertools::Itertools;

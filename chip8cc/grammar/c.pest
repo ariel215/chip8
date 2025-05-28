@@ -40,15 +40,9 @@ quote = {"\""}
 string_literal = {"L"?~quote~((!quote~ANY)|escaped_quote)*~quote}
 
 
-ident = {(!ASCII_DIGIT~ANY)~ANY*} 
+ident = {(!ASCII_DIGIT~ANY)~ASCII_ALPHANUMERIC*} 
 type_name = {(char | short | int | long) } // FIXME PLEASE
 
-
-expression = {
-     prefix* ~ primary ~ postfix* ~ (infix ~ prefix* ~ primary ~ postfix* )* 
-}
-
-primary = _{constant | string_literal | ("("~ expression~")") | ident}
 
 postfix = {
     "[" ~ expression ~ "]"
@@ -62,15 +56,18 @@ postfix = {
 
 unary_op = {"&" | "*" | "+" | "-" | "~" | "!"}
 
-prefix = _{
-    inc_op 
-    | dec_op
-    | unary_op
-    | sizeof
-    | unary_op ~ cast*
-}
 
 cast = {("("~ type_name ~ ")")}
+
+function_call = {ident ~ "(" ~ (expression ~ ("," ~ expression)*)? ~ ")"}
+
+
+expression = {ident ~ assign ~ expression | sum }
+sum  = {factor ~ add ~ sum | factor}
+factor = {primary ~ mul ~ factor | unary }
+unary = { (unary_op ~ primary) | cast ~ primary | primary }
+primary = _{("("~ expression~")") | constant | string_literal | ident}
+
 
 mul = {
     "*"

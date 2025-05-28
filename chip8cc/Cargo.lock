@@ -156,7 +156,7 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6fac387a98bb7c37292057cffc56d62ecb629900026402633ae9160df93a8766"
 dependencies = [
- "nom",
+ "nom 7.1.3",
 ]
 
 [[package]]
@@ -188,7 +188,7 @@ dependencies = [
  "clap",
  "clio",
  "itertools",
- "nom",
+ "nom 8.0.0",
  "nom-supreme",
  "pest",
  "pest_consume",
@@ -496,16 +496,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "nom"
+version = "8.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df9761775871bdef83bee530e60050f7e54b1105350d6884eb0fb4f46c2f9405"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
+name = "nom-language"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2de2bc5b451bfedaef92c90b8939a8fff5770bdcc1fafd6239d086aab8fa6b29"
+dependencies = [
+ "nom 8.0.0",
+]
+
+[[package]]
 name = "nom-supreme"
 version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bd3ae6c901f1959588759ff51c95d24b491ecb9ff91aa9c2ef4acc5b1dcab27"
+source = "git+https://github.com/nobie-org/nom-supreme.git?branch=matt%2Fchore%2Fupgrade-to-nom-v8#d95ef5fe77619d47431a74ae1ce9e7de37d52364"
 dependencies = [
  "brownstone",
  "indent_write",
  "joinery",
  "memchr",
- "nom",
+ "nom 8.0.0",
+ "nom-language",
 ]
 
 [[package]]
