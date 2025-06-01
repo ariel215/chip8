@@ -30,10 +30,11 @@ fn get_uses<'a>(statement: &'a ParseNode) -> Vec<String> {
             ParseNode::Var(v) =>{ uses.push(v.clone()); uses}
             ParseNode::Binary(b) => match b.operator {
                 Operator::Assign => {get_uses_rec(&b.right,uses )}
-                Operator::Plus | Operator::Minus => {
+                _ => {
                     let uses = get_uses_rec(&b.left, uses);
                     get_uses_rec(&b.right, uses)
-                }
+                },
+                _ => todo!()
             }
         }
     }
