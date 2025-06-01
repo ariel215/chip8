@@ -118,6 +118,10 @@ impl<'a> LoweringVisitor<'a> {
                         self.instructions.push(instruction);
                         Some(place)
                     }
+                    Operator::Times | Operator::Divided=> {
+                        todo!("these both need to be implemented in software")
+                    }
+                    _ => todo!()
                 }
             }
         };

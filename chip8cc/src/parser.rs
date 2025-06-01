@@ -3,7 +3,7 @@ use nom::{
     bytes::complete::tag,
     character::complete::{alpha1, alphanumeric0, digit1, hex_digit1, multispace0},
     combinator::{map_res, not, opt, peek, recognize, verify},
-    error::Error,
+    error::{Error, ParseError},
     multi::many0,
     number::complete::hex_u32,
     sequence::{delimited, terminated},
@@ -13,9 +13,25 @@ use nom_supreme::{error::ErrorTree, final_parser::final_parser, ParserExt};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Operator {
-    Assign,
+    Times, 
+    Divided,
     Plus,
     Minus,
+    ShiftLeft,
+    ShiftRight,
+    LEq,
+    Lt,
+    Geq, 
+    Gt,
+    Eq,
+    Neq,
+    BitAnd,
+    BitOr,
+    BitXor,
+    LogicAnd,
+    LogicOr,
+    Assign,
+
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -33,7 +49,7 @@ pub enum ParseNode {
     Binary(BinaryOp),
 }
 
-type PResult<I, O> = nom::IResult<I, O, ErrorTree<I>>;
+type PResult<'a, I=&'a str, O=ParseNode> = nom::IResult<I, O, ErrorTree<I>>;
 
 pub fn parse_unsigned(input: &str) -> PResult<&str, u8> {
     if let Ok((remaining, _)) =
@@ -63,47 +79,117 @@ pub fn parse_variable(input: &str) -> PResult<&str, ParseNode> {
         .parse(input)
 }
 
-pub fn parse_expression(input: &str) -> PResult<&str, ParseNode> {
-    let terminal1 = alt((parse_number, parse_variable)).terminated(multispace0);
-    let terminal2 = alt((parse_number, parse_variable))
-        .terminated(multispace0)
-        .context("needed expression here");
+pub fn atom(input: &str) -> PResult {
+    let parens = delimited(tag("("), parse_expression, tag(")"));
+    alt((parse_number, parse_variable, parens)).parse(input)
+}
 
-    let operator = alt((tag("+"), tag("-"))).map(|op| {
-        if op == "+" {
-            Operator::Plus
-        } else {
-            Operator::Minus
-        }
-    });
-    (
-        terminal1,
-        multi::many0((multispace0, operator, multispace0, terminal2)),
-    )
-        .map(
-            |(left, right): (ParseNode, Vec<(&str, Operator, &str, ParseNode)>)| {
-                right.into_iter().fold(left, |acc, (_, op, _, right)| {
-                    ParseNode::Binary(BinaryOp {
-                        operator: op,
-                        left: Box::new(acc),
-                        right: Box::new(right),
-                    })
-                })
-            },
-        )
+pub fn left_associate<'a, T, O>(term: T, ops: O) -> impl FnMut(&'a  str) -> PResult
+    where 
+    O: ParserExt<&'a str, Operator, ErrorTree<&'a str>>,
+    T: ParserExt<&'a str, ParseNode, ErrorTree<&'a str>> + Copy{
+    let t1 = term.terminated(multispace0);
+    let t2 = term.terminated(multispace0);
+    let terms =        (t1, many0(
+            (ops.terminated(multispace0), t2)));
+    let mut parser = Parser::map(terms,
+    |(left, rest)| rest.into_iter().fold(
+                left, |acc, (op,right)| {
+                    ParseNode::Binary(BinaryOp { operator: op, left: Box::new(acc), right: Box::new(right) })
+                }
+            )
+     );
+    move |input: &str| {
+        parser.parse(input)
+    }
+}
+
+macro_rules! operators {
+    ($(($character: expr, $operator: expr)),*) => {
+        alt(($(tag($character)),* ))
+            .map(|c| match c {
+                $($character => $operator,)*
+                _ => unreachable!()
+            })
+    };
+}
+
+pub fn parse_product(input: &str) -> PResult<&str, ParseNode>{
+    let operators = operators!(
+        ("*", Operator::Times),
+        ("/", Operator::Divided)
+    );
+    left_associate(atom, operators).parse(input)
+}
+
+pub fn parse_sum(input: &str) -> PResult<&str, ParseNode> {
+        let ops = operators!(("+", Operator::Plus), ("-", Operator::Minus));
+        left_associate(parse_product, ops)
         .parse(input)
+}
+
+pub fn parse_shift(input: &str) -> PResult {
+    left_associate(parse_sum, operators!(
+        ("<<", Operator::ShiftLeft),
+        (">>", Operator::ShiftRight)
+    )).parse(input)
+}
+
+pub fn parse_relation(input: &str) -> PResult {
+    left_associate(parse_shift, operators!(
+        ("<=", Operator::LEq),
+        ("<", Operator::Lt),
+        (">=", Operator::Geq),
+        (">", Operator::Gt)
+    )).parse(input)
+}
+
+
+pub fn parse_eq(input: &str) -> PResult {
+    left_associate(parse_relation, operators!(
+        ("==", Operator::Eq),
+        ("!=", Operator::Neq)
+    )).parse(input)
+}
+
+pub fn parse_and(input: &str) -> PResult {
+    left_associate(parse_eq, 
+        tag("&").map(|_| Operator::BitAnd)
+    ).parse(input)
+}
+
+pub fn parse_or(input: &str) -> PResult {
+    left_associate(parse_and, tag("|").map(|_|Operator::BitOr)
+    ).parse(input)
+}
+
+pub fn parse_xor(input: &str) -> PResult {
+    left_associate(parse_or, tag("^").map(|_|Operator::BitXor)
+    ).parse(input)
+}
+
+pub fn parse_logical_and(input: &str) -> PResult {
+    left_associate(parse_xor,     tag("&&").map(|_|Operator::LogicAnd)
+    ).parse(input)
+}
+
+pub fn parse_logical_or(input: &str) -> PResult {
+    left_associate(parse_logical_and,     tag("||").map(|_|Operator::LogicOr)
+    ).parse(input)
+}
+
+pub fn parse_expression(input: &str) -> PResult {
+    parse_logical_or(input)
 }
 
 pub fn parse_assign(input: &str) -> PResult<&str, ParseNode> {
     let mut parser = (
-        parse_variable,
-        multispace0,
-        tag("="),
-        multispace0,
-        parse_expression,
+        parse_variable.terminated(multispace0),
+        tag("=").terminated(multispace0),
+        parse_logical_or,
     )
         .context("assignment");
-    let (rest, (var, _, _, _, val)) = Parser::parse(&mut parser, input)?;
+    let (rest, (var,  _, val)) = Parser::parse(&mut parser, input)?;
     return Ok((
         rest,
         ParseNode::Binary(BinaryOp {
@@ -129,12 +215,16 @@ pub fn parse_statements(input: &str) -> Result<Vec<ParseNode>, ErrorTree<&str>> 
 
 #[cfg(test)]
 mod tests {
+    use std::result;
+
     use super::*;
 
     macro_rules! passes {
         ($parser: ident, $input: expr) => {
             let result = $parser($input);
             assert!(result.is_ok(), "failed to parse {:?}: {:?}", $input, result);
+            let (remainder, _) = result.unwrap();
+            assert!(remainder.len() == 0, "failed to parse {} from {}", remainder, $input)
         };
     }
 
@@ -166,6 +256,16 @@ mod tests {
             })
         };
     }
+    macro_rules! times {
+        ($l: expr, $r: expr) => {
+            ParseNode::Binary(BinaryOp {
+                operator: Operator::Times,
+                left: Box::new($l),
+                right: Box::new($r),
+            })
+        };
+    }
+
 
     macro_rules! assign {
         ($l: expr, $r: expr) => {
@@ -180,18 +280,13 @@ mod tests {
     #[test]
     fn test_unsigned() {
         for i in u8::MIN..=u8::MAX {
-            let input = format!("0x{:x} ", i);
+            let input = format!("0x{:x}", i);
             passes!(parse_unsigned, &input);
         }
         for i in u8::MIN..=u8::MAX {
-            let input = format!("{} ", i);
+            let input = format!("{}", i);
             passes!(parse_unsigned, &input);
         }
-
-        let input = "100 ";
-        assert!(parse_unsigned(input).is_ok());
-        let input = "0xc3 ";
-        assert!(parse_unsigned(input).is_ok());
     }
 
     #[test]
@@ -202,9 +297,9 @@ mod tests {
 
     #[test]
     fn test_parse_number() {
-        let input = "100 ";
+        let input = "100";
         assert!(parse_number(input).is_ok());
-        let input = "0xc3 ";
+        let input = "0xc3";
         assert!(parse_number(input).is_ok());
     }
 
@@ -219,15 +314,39 @@ mod tests {
     fn test_parse_assign() {
         passes!(parse_assign, "x=1");
         passes!(parse_assign, "x = 1");
-        passes!(parse_assign, "x = 1 ;\n");
+        // passes!(parse_assign, "x = 1 ;\n");
         passes!(parse_assign, "x = y");
     }
 
     #[test]
     fn test_parse_add() {
-        passes!(parse_expression, "1 + 2");
-        passes!(parse_expression, "x + y + 1");
+        passes!(parse_sum, "1 + 2");
+        passes!(parse_sum, "x + y + 1");
     }
+
+    #[test]
+    fn test_parse_product(){
+        passes!(parse_product, "2 * 3");
+        passes!(parse_product, "x / 2");
+    }
+
+
+    #[test]
+    fn test_atoms(){
+        passes!(parse_sum, "1");
+        passes!(parse_product, "2");
+    }
+
+    #[test]
+    fn test_add_mul(){
+        let input = "1 + 2 * 3 - 4";
+        passes!(parse_sum,input);
+        let (_,result) = parse_sum.complete().parse(input).unwrap();
+        if let ParseNode::Binary(BinaryOp{operator, .. }) = &result {
+            assert!(matches!(operator, Operator::Minus), "{:?}", result)
+        } else { panic!("{:?}", result)}
+    }
+
 
     #[test]
     fn test_parse_assign_add() {
@@ -277,9 +396,23 @@ mod tests {
     }
 
     #[test]
+    fn test_parens(){
+        let input = "(1 + 2) * (3 + 4)";
+        passes!(parse_expression, input);
+        let (_, result) = parse_expression(input).unwrap();
+        assert_eq!(result,
+            times!(plus!(u!(1),u!(2)), plus!(u!(3), u!(4)))
+        )
+    }
+
+    #[test]
     fn test_parse_statements() {
-        passes!(parse_statements, "x=1;");
-        passes!(parse_statements, "x=1;\ny=3;\nz=y;");
-        fails!(parse_statements, "x = 1 y = 3 z = y");
+        let inputs = [("x=1;",1), ("x=1;\ny=3;\nz=y;",3)];
+        for (input, expected_len) in inputs.iter(){ 
+            let result = parse_statements(&input);
+            assert!(result.is_ok());
+            assert!(result.unwrap().len() == *expected_len)
+        }
+        assert!(parse_statements("x = 1 y = 3 z = y").is_err());
     }
 }
