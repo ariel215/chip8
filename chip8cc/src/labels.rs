@@ -4,7 +4,7 @@ use std::{
     ops::Range,
 };
 
-use chip8::{Instruction, INSTRUCTION_SIZE};
+use chippy_lib::{Instruction, INSTRUCTION_SIZE};
 use itertools::Itertools;
 use pest::{
     error::ErrorVariant,
@@ -22,10 +22,10 @@ pub type Error = pest::error::Error<Rule>;
 pub enum Line {
     Instr(Instruction),
     Data(Vec<u8>),
-    Label
+    Label,
 }
 
-pub type ParseResult<'a, T=Line> = Result<(T, Option<&'a str>), Error>;
+pub type ParseResult<'a, T = Line> = Result<(T, Option<&'a str>), Error>;
 
 pub struct Program<'a> {
     /// The program instructions in the order that they appear.
@@ -50,7 +50,7 @@ impl<'a> Program<'a> {
                     .map(|l| match l {
                         Line::Instr(_) => INSTRUCTION_SIZE,
                         Line::Data(data) => data.len(),
-                        Line::Label => 0
+                        Line::Label => 0,
                     })
                     .collect_vec();
                 let total_size = sizes.into_iter().sum::<usize>();
@@ -190,7 +190,7 @@ fn parse_binop<'a>(pair: Pair<'a, Rule>) -> ParseResult<'a> {
 
 fn parse_addr<'a>(addr: Pairs<'a, Rule>) -> ParseResult<'a, u16> {
     if let Some(fixed_addr) = addr.find_first_tagged("fixed") {
-        return parse_u16(&fixed_addr).map(|result|(result, None))
+        return parse_u16(&fixed_addr).map(|result| (result, None));
     }
     if let Some(label) = addr.find_first_tagged("label") {
         return Ok((0, Some(label.as_str())));
@@ -198,13 +198,13 @@ fn parse_addr<'a>(addr: Pairs<'a, Rule>) -> ParseResult<'a, u16> {
     unreachable!()
 }
 
-fn parse_call<'a>(mut call: Pairs<'a, Rule>) -> ParseResult {
+fn parse_call<'a>(mut call: Pairs<'a, Rule>) -> ParseResult<'a> {
     let addr = call.nth(1).unwrap().into_inner();
     let addr = parse_addr(addr)?;
     return Ok((Line::Instr(Instruction::Call(addr.0)), addr.1));
 }
 
-fn parse_jump<'a>(jump: Pair<'a, Rule>) -> ParseResult {
+fn parse_jump<'a>(jump: Pair<'a, Rule>) -> ParseResult<'a> {
     let rule = jump.as_rule();
     let mut jump_in = jump.clone().into_inner();
     let addr = jump_in.next().unwrap().into_inner();
@@ -219,14 +219,14 @@ fn parse_jump<'a>(jump: Pair<'a, Rule>) -> ParseResult {
     ))
 }
 
-fn parse_draw<'a>(mut draw: Pairs<'a, Rule>) -> ParseResult {
+fn parse_draw<'a>(mut draw: Pairs<'a, Rule>) -> ParseResult<'a> {
     let r1 = register(&draw.nth(1).unwrap())?;
     let r2 = register(&draw.nth(1).unwrap())?;
     let n = parse_u8(&draw.nth(1).unwrap())?;
     return Ok((Line::Instr(Instruction::Draw(r1, r2, n)), None));
 }
 
-fn parse_unop<'a>(op: Pair<'a, Rule>) -> ParseResult {
+fn parse_unop<'a>(op: Pair<'a, Rule>) -> ParseResult<'a> {
     let rule = op.as_rule();
     let reg = register(&op.clone().into_inner().nth(1).unwrap())?;
     Ok((
@@ -268,7 +268,7 @@ fn parse_load<'a>(load_args: Pair<'a, Rule>) -> ParseResult<'a> {
     ))
 }
 
-fn parse_bytes<'a>(bytes_args: Pair<'a, Rule>) -> ParseResult {
+fn parse_bytes<'a>(bytes_args: Pair<'a, Rule>) -> ParseResult<'a> {
     let hexes = bytes_args.into_inner();
     let mut bytes = Vec::with_capacity(hexes.len());
     for arg in hexes {
@@ -277,7 +277,7 @@ fn parse_bytes<'a>(bytes_args: Pair<'a, Rule>) -> ParseResult {
     Ok((Line::Data(bytes), None))
 }
 
-fn parse_instruction<'a>(pair: Pair<'a, Rule>) -> ParseResult {
+fn parse_instruction<'a>(pair: Pair<'a, Rule>) -> ParseResult<'a> {
     match pair.as_rule() {
         Rule::cls => Ok((Line::Instr(Instruction::ClearScreen), None)),
         Rule::ret => Ok((Line::Instr(Instruction::Ret), None)),
@@ -301,16 +301,14 @@ fn parse_instruction<'a>(pair: Pair<'a, Rule>) -> ParseResult {
     }
 }
 
-fn parse_line<'a> (line: Pair<'a, Rule>) -> ParseResult {
+fn parse_line<'a>(line: Pair<'a, Rule>) -> ParseResult<'a> {
     let label_instr = line.clone().into_inner().next().unwrap();
     match label_instr.as_rule() {
-        Rule::instruction => {
-            parse_instruction(label_instr.into_inner().next().unwrap())
-        },
+        Rule::instruction => parse_instruction(label_instr.into_inner().next().unwrap()),
         Rule::label => {
             let name = label_instr.into_inner().next().unwrap().as_str();
-            Ok((Line::Label,Some(name)))
-        },
+            Ok((Line::Label, Some(name)))
+        }
         rule => {
             return Err(Error::new_from_pos(
                 ErrorVariant::CustomError {
@@ -335,20 +333,20 @@ pub fn parse_program(file: &str) -> Result<Program, Error> {
                     Rule::line => {
                         let parsed_line = parse_line(line.clone())?;
                         match parsed_line.0 {
-                            Line::Instr(ref instruction) => {
+                            Line::Instr(ref _instruction) => {
                                 program.instructions.push(parsed_line.0);
                                 program.references.push(parsed_line.1);
-                            },
-                            Line::Data(ref items) => {
+                            }
+                            Line::Data(ref _i) => {
                                 program.instructions.push(parsed_line.0);
                                 program.references.push(None);
                             }
                             Line::Label => {
-                                program.labels.insert(
-                                    parsed_line.1.unwrap(),
-                                    program.instructions.len()
-                                );
-                            }                        }
+                                program
+                                    .labels
+                                    .insert(parsed_line.1.unwrap(), program.instructions.len());
+                            }
+                        }
                     }
                     Rule::EOI => {
                         break;
@@ -372,7 +370,7 @@ pub fn parse_program(file: &str) -> Result<Program, Error> {
 #[cfg(test)]
 mod tests {
     use crate::labels::Line;
-    use chip8::Instruction;
+    use chippy_lib::Instruction;
     use pest::Parser;
 
     use super::{InstructionParser, Rule};
@@ -380,13 +378,12 @@ mod tests {
     macro_rules! testcase {
         ($name:ident, $rule:expr, $input:literal) => {
             #[test]
-            fn $name(){
+            fn $name() {
                 let pairs = InstructionParser::parse($rule, $input);
                 assert!(pairs.is_ok())
             }
         };
     }
-
 
     testcase!(test_ld_immediate, Rule::load, "ld v0 1");
     testcase!(test_ld_memory, Rule::load, "ld I 100");

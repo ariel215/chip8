@@ -1,8 +1,8 @@
 use std::io::{Read, Write};
 use std::result::Result;
 
-use chip8::*;
 use chip8cc::parse_program;
+use chippy_lib::Instruction;
 use clap::Parser;
 use clio::*;
 use itertools::{self, Itertools};

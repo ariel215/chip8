@@ -1,4 +1,4 @@
-pub mod labels;
-pub mod c;
 pub mod basicblock;
+pub mod c;
+pub mod labels;
 pub use labels::parse_program;
