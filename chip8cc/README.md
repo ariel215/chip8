@@ -6,7 +6,7 @@ Chip8CC
 
 ## Roadmap
 1. Labels (completed)
-1. static data:
+1. static data (completed)
     - BYTES pseudoinstruction
     - followed by 1 or more bytes in hex
     - terminated by a semicolon
@@ -20,3 +20,17 @@ Chip8CC
 5. Functions, stack frames, stack pointer
 6. Types and type-checking
 7. TBD...
+
+
+## Thoughts
+
+### How to do stores/loads in chip8
+
+The Chip8 instruction set doesn't let you load memory into arbitrary registers,
+but only the first N, which means that to load X into vN
+- push v0
+- load X into v0
+- mov vN <- v0
+- pop v0
+
+... it's gross but it works

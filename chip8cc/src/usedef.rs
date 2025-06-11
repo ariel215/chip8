@@ -1,17 +1,40 @@
-use std::collections::HashMap;
+/// Use-Def chains 
+/// 
+/// Example: 
+/// ```
+/// let new_names = chains.iter().map(|name|make_unique(all_names,name));
+/// for (name,chain) in new_names.zip(chains.iter_mut()) {
+///     chain.update(name)
+/// }
+/// ```
+/// 
+/// 
+/// This is conceptually what should happen, although it doesn't work under
+/// Rusts' memory model since a use-def chain shouldn't own the underlying variable,
+/// nor should it contain a mutable reference to it
+/// ```
+/// fn update(&mut self, new_name: String){
+///     *self.def = ParseNode::Var(new_name.clone())
+///     for use in self.uses.iter_mut(){
+///         *use = ParseNode::Var(new_name.clone())
+///     }
+/// }
+/// ```
+/// 
 
-use clap::builder::Str;
+
+use std::collections::HashMap;
 use itertools::Itertools;
 
 use crate::{parser::*};
 
-struct UseDefChain{
+pub(crate) struct UseDefChain{
     def: usize,
     uses: Vec<usize>
 }
 
 
-fn get_def(statement: &ParseNode) -> Option<&str>{
+pub(crate) fn get_def(statement: &ParseNode) -> Option<&str>{
     match statement {
         ParseNode::Var(v) => Some(v.as_ref()),
         ParseNode::Binary(BinaryOp{operator, left, ..})
@@ -34,7 +57,6 @@ fn get_uses<'a>(statement: &'a ParseNode) -> Vec<String> {
                     let uses = get_uses_rec(&b.left, uses);
                     get_uses_rec(&b.right, uses)
                 },
-                _ => todo!()
             }
         }
     }
@@ -43,7 +65,7 @@ fn get_uses<'a>(statement: &'a ParseNode) -> Vec<String> {
 }
 
 
-fn use_def_chains(statements: Vec<ParseNode>) -> Result<Vec<Option<UseDefChain>>, String> {
+pub(crate) fn use_def_chains(statements: Vec<ParseNode>) -> Result<Vec<Option<UseDefChain>>, String> {
     let mut chains: Vec<Option<UseDefChain>> = statements.iter().map(|_|{None}).collect_vec();
     let mut last_def= HashMap::new();
     for (i, statement) in statements.iter().enumerate() {

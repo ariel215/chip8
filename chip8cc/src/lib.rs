@@ -8,4 +8,5 @@ pub mod tests;
 pub use labels::parse_program;
 
 
-mod usedef;
+pub(crate) mod usedef;
+pub(crate) mod ssa;
