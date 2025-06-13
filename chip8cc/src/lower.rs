@@ -1,7 +1,7 @@
 use std::{array, collections::{BTreeMap, HashMap}, ops::{Range, RangeInclusive}};
 
 use crate::parser::{Operator, ParseNode};
-use chip8::Instruction;
+use chippy_lib::Instruction;
 
 // A LongInstruction is just an instruction
 // that makes use of a register that may not exist
@@ -187,7 +187,7 @@ fn swap(vx: u8, vy: u8) -> Vec<Instruction>{
     vec![
         Instruction::SetMemPtr(0x100),
         Instruction::RegDump(vx),
-        Instruction::SetMemPtr(0x100 + vy),
+        Instruction::AddMemPtr(vy),
         Instruction::RegLoad(0),
         Instruction::SetReg(vx, 0),
         Instruction::SetMemPtr(0x100),
@@ -213,7 +213,7 @@ fn lower(linstr: &LongInstruction) -> Vec<Instruction> {
         Instruction::AddImm(r, _) |
         Instruction::Rsh(r) |
         Instruction::Lsh(r) |
-        Instruction::Rand(r, _) |hi
+        Instruction::Rand(r, _) |
         Instruction::GetDelay(r) |
         Instruction::WaitForKey(r) |
         Instruction::SetDelay(r) |
@@ -222,10 +222,10 @@ fn lower(linstr: &LongInstruction) -> Vec<Instruction> {
         Instruction::BCD(r)  => {
             if r > 14 {
                 let mut instrs = swap(0,r);
-                let new_instr: u16 = i.into() & 0xf0ff;
+                let new_instr: u16 = Into::<u16>::into(i) & 0xf0ff;
                 instrs.push(new_instr.into());
                 instrs
-            }
+            } else { vec![i]}
         }
         // These instructions use 2 registers
         Instruction::SkipEqReg(vx,vy) |
@@ -240,17 +240,18 @@ fn lower(linstr: &LongInstruction) -> Vec<Instruction> {
         Instruction::Draw(vx,vy, _) => {
             let mut instrs = Vec::new();
             let xnew = 
-            if vx > 14 {
+            (if vx > 14 {
                 instrs.extend_from_slice(&swap(0,vx));
                 0
-            } else { vx };
+            } else { vx }) as u16;
             let ynew = 
-                if vy > 14 {
+                (if vy > 14 {
                     instrs.extend_from_slice(&swap(1, vy));
                     1
-                } else  { vy };
-            let new_instr: u16 = i.into() & 0xf00f | (xnew << 8 ) | (ynew << 4);
-            instrs.push(new_instr.into())
+                } else  { vy }) as u16;
+            let new_instr: u16 = (Into::<u16>::into(i) & 0xf00fu16) | ((xnew << 8u16 ) | (ynew << 4u16));
+            instrs.push(new_instr.into());
+            instrs
         }
         /// These instructions don't work with extended registers
         Instruction::SkipKeyPressed(_) |

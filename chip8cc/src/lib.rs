@@ -1,5 +1,3 @@
-pub mod basicblock;
-pub mod c;
 pub mod labels;
 pub mod lower;
 pub mod parser;
