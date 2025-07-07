@@ -1,4 +1,5 @@
-use chippy::driver::{Chip8Driver, EmulatorMode};
+use cfg_if::cfg_if;
+use chippy::driver::{self, run, Chip8Driver, EmulatorMode};
 use std::io::Read;
 
 use clap::Parser;
@@ -14,7 +15,7 @@ struct Args {
 }
 
 fn main() {
-    let args = Args::parse();
+    let args: Args = Args::parse();
     let rom_name = args.rom.as_os_str().to_string_lossy().into_owned();
     let mut input = args
         .rom
@@ -24,14 +25,5 @@ fn main() {
     input
         .read_to_end(&mut instructions)
         .expect(&format!("Failed to read {}", rom_name));
-    let mut driver = Chip8Driver::new(
-        if args.debug {
-            EmulatorMode::Paused
-        } else {
-            EmulatorMode::Running
-        },
-        args.speed,
-    );
-    driver.load_rom(&instructions);
-    driver.run()
+    driver::run(&instructions, args.speed, args.debug);
 }
