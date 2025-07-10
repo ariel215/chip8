@@ -9,15 +9,12 @@ use std::time::Duration;
 use chippy_lib::{Instruction, Chip8, INSTRUCTION_SIZE, MEMORY_SIZE};
 
 cfg_if!{
-    if #[cfg(any(feature = "egui", target_family = "wasm" ))]{
+    if #[cfg(any(feature = "egui",target_family = "wasm"))] {
         pub mod egui;
-    }
-    else {
+    } else {
         pub mod raylib;
-        pub(crate) use raylib::RaylibDisplay;
     }
 }
-
 
 #[derive(Clone, Copy, Debug)]
 pub enum KeyInput {

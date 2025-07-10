@@ -17,7 +17,7 @@ pub trait Chip8Driver {
 
 cfg_if! {
     if #[cfg(any(feature = "egui",target_family = "wasm"))] {
-
+        #[wasm_bindgen]
         pub fn run(rom: &[u8], speed: Option<u64>, paused: bool){
             <frontend::egui::EguiDriver as Chip8Driver>::run(rom, speed, paused);
         }

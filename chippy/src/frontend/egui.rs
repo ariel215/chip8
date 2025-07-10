@@ -14,9 +14,11 @@ use itertools::Itertools;
 use miniquad as mq;
 use rfd::AsyncFileDialog;
 use async_std::{self, sync::Mutex};
-
 use super::{print_memory, print_registers, InstructionWindow, KeyInput, Vector};
+use wasm_bindgen::prelude::wasm_bindgen;
 
+
+#[wasm_bindgen]
 pub struct EguiDriver {
     chip8: Chip8,
     display: EguiDisplay,
@@ -26,7 +28,7 @@ pub struct EguiDriver {
 }
 
 impl EguiDriver {
-    pub fn new(speed: Option<u64>, paused: bool) -> Self {
+    pub fn new(speed: Option<u64>, paused: bool) -> EguiDriver {
         let mut mq_context = mq::window::new_rendering_backend();
         let mut driver = Self {
             chip8: Chip8::init(speed),

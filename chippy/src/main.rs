@@ -25,5 +25,5 @@ fn main() {
     input
         .read_to_end(&mut instructions)
         .expect(&format!("Failed to read {}", rom_name));
-    driver::run(&instructions, args.speed, args.debug);
+    driver::run(instructions.as_slice(), args.speed, args.debug);
 }
