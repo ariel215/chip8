@@ -101,6 +101,12 @@ impl Chip8 {
         }
     }
 
+    pub fn reset_with_rom(&mut self, rom: &[u8]){
+        self.memory = Memory::default();
+        self.registers = Registers::default();
+        self.load_rom(rom);
+    }
+
     pub fn clock_speed(&mut self, speed: u64) {
         self.clock_speed = speed;
     }

@@ -1,8 +1,5 @@
 use std::{
-    collections::HashMap,
-    sync::LazyLock,
-    thread::sleep,
-    time::{self, Duration, Instant},
+    collections::HashMap, fs::read, path::PathBuf, sync::LazyLock, thread::sleep, time::{self, Duration, Instant}
 };
 use chippy_lib::{INSTRUCTION_SIZE, MEMORY_SIZE, Chip8, DISPLAY_ROWS, DISPLAY_COLUMNS};
 
@@ -21,6 +18,7 @@ use ::raylib::{
     logging
 };
 
+use rfd::FileDialog;
 use bitvec::{array::BitArray, BitArr};
 use itertools::Itertools;
 
@@ -40,9 +38,9 @@ pub(crate) struct RaylibDriver {
 }
 
 impl Chip8Driver for RaylibDriver {
-    fn run(rom: &[u8], speed: Option<u64>, paused: bool) {
+    fn run(speed: Option<u64>, paused: bool) {
         let mut driver = Self::new(speed, paused);
-        driver.load_rom(rom);
+        while !driver.load_rom(None){};
         loop {
             let start = Instant::now();
             driver.step();
@@ -50,7 +48,9 @@ impl Chip8Driver for RaylibDriver {
                 return;
             }
             let elapsed = Instant::now().duration_since(start);
-            sleep(FRAME_DURATION - elapsed);
+            if elapsed < FRAME_DURATION {
+                sleep(FRAME_DURATION - elapsed);
+            }
         }
     }
 }
@@ -68,9 +68,29 @@ impl RaylibDriver {
         }
     }
 
-    pub fn load_rom(&mut self, rom: &[u8]) {
-        self.chip8.load_rom(rom);
+    fn pick_rom() -> Option<Vec<u8>> {
 
+        FileDialog::new()
+            .pick_file()
+            .and_then(|path: PathBuf| {
+                read(path).ok()
+            })
+    }
+
+    
+    pub fn load_rom(&mut self, rom: Option<&[u8]>) -> bool {
+
+        if let Some(slice) = rom {
+            self.chip8.reset_with_rom(slice);
+            return true
+        }
+        
+        if let Some(new_rom) = RaylibDriver::pick_rom(){
+                self.chip8.reset_with_rom(new_rom.as_slice());
+                return true
+        }
+
+        false
     }
 
     pub fn step_paused(&mut self) {
@@ -89,7 +109,8 @@ impl RaylibDriver {
                 KeyInput::Click(position) => self.display.on_mouse_click(position),
                 KeyInput::Scroll(position, amount) => {
                     self.display.on_mouse_scroll(position, amount);
-                }
+                },
+                KeyInput::LoadROM => {self.load_rom(None);}
                 other => print!("unknown key input: {:?}", other)
             }
         }
@@ -113,6 +134,11 @@ impl RaylibDriver {
                         break;
                     }
                     KeyInput::ToggleDebug => self.display.toggle_debug(),
+                    KeyInput::LoadROM => {
+                        if !self.load_rom(None) {
+                            self.mode = EmulatorMode::Paused;
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -175,7 +201,7 @@ enum KeyState {
 impl RaylibDisplay {
     const WINDOW_WIDTH: i32 = 960;
     const WINDOW_HEIGHT: i32 = 480;
-    const KEYMAP: [(KeyboardKey, KeyInput); 20] = [
+    const KEYMAP: [(KeyboardKey, KeyInput); 21] = [
         (KeyboardKey::KEY_ONE, KeyInput::Chip8Key(0x1)),
         (KeyboardKey::KEY_TWO, KeyInput::Chip8Key(0x2)),
         (KeyboardKey::KEY_THREE, KeyInput::Chip8Key(0x3)),
@@ -196,6 +222,7 @@ impl RaylibDisplay {
         (KeyboardKey::KEY_P, KeyInput::TogglePause),
         (KeyboardKey::KEY_PERIOD, KeyInput::ToggleDebug),
         (KeyboardKey::KEY_ENTER, KeyInput::Step),
+        (KeyboardKey::KEY_O, KeyInput::LoadROM)
     ];
     const DEBUG_MAIN_WINDOW: Rectangle = Rectangle {
         x: 0.0,

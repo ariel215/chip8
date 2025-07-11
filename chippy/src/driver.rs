@@ -12,18 +12,18 @@ pub enum EmulatorMode {
 }
 
 pub trait Chip8Driver {
-    fn run(rom: &[u8], speed: Option<u64>, paused: bool);
+    fn run(speed: Option<u64>, paused: bool);
 }
 
 cfg_if! {
     if #[cfg(any(feature = "egui",target_family = "wasm"))] {
         #[wasm_bindgen]
-        pub fn run(rom: &[u8], speed: Option<u64>, paused: bool){
-            <frontend::egui::EguiDriver as Chip8Driver>::run(rom, speed, paused);
+        pub fn run(speed: Option<u64>, paused: bool){
+            <frontend::egui::EguiDriver as Chip8Driver>::run(speed, paused);
         }
     } else {
-        pub fn run(rom: &[u8], speed: Option<u64>, paused: bool){
-            <frontend::raylib::RaylibDriver as Chip8Driver>::run(rom, speed, paused);
+        pub fn run(speed: Option<u64>, paused: bool){
+            <frontend::raylib::RaylibDriver as Chip8Driver>::run(speed, paused);
         }
     }
 }

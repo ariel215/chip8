@@ -1,3 +1,5 @@
+use std::mem;
+use std::sync::Mutex;
 use std::{process::exit, sync::Arc};
 
 use crate::driver::{Chip8Driver, EmulatorMode};
@@ -13,10 +15,9 @@ use egui_miniquad::EguiMq;
 use itertools::Itertools;
 use miniquad as mq;
 use rfd::AsyncFileDialog;
-use async_std::{self, sync::Mutex};
+use async_std::task::block_on;
 use super::{print_memory, print_registers, InstructionWindow, KeyInput, Vector};
 use wasm_bindgen::prelude::wasm_bindgen;
-
 
 #[wasm_bindgen]
 pub struct EguiDriver {
@@ -58,16 +59,55 @@ impl EguiDriver {
         driver
     }
 
-    pub fn load_rom(&mut self, rom: &[u8]) {
-        self.chip8.load_rom(rom)
+    fn pick_rom() -> Option<Vec<u8>> {
+        let new_rom: Arc<Mutex<Option<Vec<u8>>>> = Arc::new(Mutex::new(None));
+        let loaded = Arc::clone(&new_rom);
+        async_std::task::block_on( async move {
+            
+            let file = AsyncFileDialog::new()
+            .pick_file()
+            .await;
+            match file {
+                Some(handle) => {
+                    let data = Some(handle.read().await);
+                    if let Ok(mut guard) = loaded.lock(){
+                        *guard = data;
+                    }
+                }
+                None => {}
+            }
+        });
+        if let Ok(mut guard) = new_rom.lock() {
+            let contained = &mut *guard;
+            let mut out = None;
+            mem::swap(contained, &mut out);
+            return out
+        }
+
+        return None
     }
+
+    
+    pub fn load_rom(&mut self, rom: Option<&[u8]>) -> bool {
+        if let Some(slice) = rom {
+            self.chip8.reset_with_rom(slice);
+            return true
+        }
+        
+        if let Some(new_rom) = EguiDriver::pick_rom(){
+                self.chip8.reset_with_rom(new_rom.as_slice());
+                return true
+        }
+
+        false
+    }
+
 
     pub fn step_paused(&mut self) {
         let mut toggle_debug = false;
         let mut click_position: Option<Vector> = None;
         let mut scroll_position: Option<Vector> = None;
         let mut scroll_amount = 0;
-        let new_rom: Arc<Mutex<Option<Vec<u8>>>> = Arc::new(Mutex::new(None));
         for k in &self.display.inputs.clone() {
             match k {
                 KeyInput::Step => {
@@ -90,28 +130,8 @@ impl EguiDriver {
                     self.display.follow_instructions = false;
                 }
                 KeyInput::LoadROM => {
-                    let loaded = Arc::clone(&new_rom);
-                    async_std::task::block_on( async move {
-                        
-                        let file = AsyncFileDialog::new()
-                        .pick_file()
-                        .await;
-                        match file {
-                            Some(handle) => {
-                                let data = Some(handle.read().await);
-                                let mut guard = loaded.lock().await;
-                                *guard = data;
-                            }
-                            None => {}
-                        }
-                    });
+                    self.load_rom(None);
                 }
-            }
-        }
-
-        if let Some(guard) = (*new_rom).try_lock(){
-            if let Some(bytes) = guard.as_ref() {
-                self.load_rom(&bytes);
             }
         }
 
@@ -246,12 +266,11 @@ impl mq::EventHandler for EguiDriver {
 }
 
 impl Chip8Driver for EguiDriver {
-    fn run(rom: &[u8], speed: Option<u64>, paused: bool) {
+    fn run(speed: Option<u64>, paused: bool) {
         let conf = mq::conf::Conf::default();
-        let rom = Vec::from_iter(rom.iter().cloned());
         mq::start(conf, move || {
             let mut driver = Self::new(speed, paused);
-            driver.load_rom(&rom);
+            while !driver.load_rom(None){};
             Box::new(driver)
         });
     }
